@@ -154,7 +154,6 @@ getConfig = do
 
 getOneCall :: Config -> IO OneCallRoot
 getOneCall cfg = do
-    -- Get coordinates from location
     cacheFile <- decodeFileStrictIfExists cachePath :: IO (Maybe OneCallRoot)
     lastModification <- getModificationTime "config.json"
     useCache <- cacheValid cacheFile (utcTimeToPOSIXSeconds lastModification) <$> getPOSIXTime
