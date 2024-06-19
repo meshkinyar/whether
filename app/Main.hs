@@ -8,7 +8,7 @@ module Main where
 import Data.Aeson
 import Network.HTTP.Simple
 import Data.Ix                             ( inRange )
-import Control.Monad                       ( when )
+import Control.Monad                       ( when, unless )
 import Data.Time.Clock.POSIX               ( getPOSIXTime, utcTimeToPOSIXSeconds, POSIXTime )
 import GHC.Generics                        ( Generic )
 import Data.Maybe                          ( fromJust )
@@ -22,6 +22,7 @@ data TemperatureUnit = Kelvin | Celsius | Farenheit
     deriving Generic
 
 instance FromJSON TemperatureUnit
+instance ToJSON TemperatureUnit
 instance Show TemperatureUnit where
     show u = case u of
         Kelvin    -> "standard"
@@ -89,6 +90,7 @@ data Config = Config
     , units  :: TemperatureUnit
     } deriving Generic
 instance FromJSON Config
+instance ToJSON Config
 
 type GeocodeRoot = [MatchedLocation]
 
@@ -147,6 +149,8 @@ main = do
 
 getConfig :: IO Config
 getConfig = do 
+    configExists <- doesFileExist "config.json"
+    unless configExists $ encodeFile "config.json" defaultConfig
     configFile <- decodeFileStrict "config.json" :: IO (Maybe Config)
     case configFile of
         Nothing -> error "Invalid config.json"
@@ -165,7 +169,7 @@ getOneCall cfg = do
         geocodeResponse  <- callAPI (apiKey cfg) 
                          $  geocodeRequest
                          $  loc cfg
-        geocode          <- maybe  (error "Invalid Geocoding Response")
+        geocode          <- maybe  (error "Invalid Geocoding Response. Ensure that your API key in config.json is valid.")
                                    return (decode geocodeResponse :: Maybe GeocodeRoot)
         let location     = case geocode of
                                  []    -> error "Empty Response"
@@ -226,6 +230,9 @@ cacheOneCall path oc = do
 ---- Constants
 cachePath :: FilePath
 cachePath = ".cache/cache.json"
+
+defaultConfig :: Config
+defaultConfig = Config { apiKey="Your API Key", loc="North Pole", units=Celsius }
 
 ---- Conversions
 toMoonPhase :: Double -> MoonPhase
