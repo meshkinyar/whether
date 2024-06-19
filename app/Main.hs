@@ -5,17 +5,17 @@
 
 module Main where
 
-import Data.Ix ( inRange )
-import Control.Monad ( when )
 import Data.Aeson
 import Network.HTTP.Simple
-import Data.Time.Clock.POSIX
-import GHC.Generics
-import Data.Maybe
-import Data.Text ( Text, pack )
-import Data.Text.Encoding ( encodeUtf8 )
-import Data.ByteString ( ByteString )
-import System.Directory
+import Data.Ix                             ( inRange )
+import Control.Monad                       ( when )
+import Data.Time.Clock.POSIX               ( getPOSIXTime, utcTimeToPOSIXSeconds, POSIXTime )
+import GHC.Generics                        ( Generic )
+import Data.Maybe                          ( fromJust )
+import Data.Text                           ( Text, pack )
+import Data.Text.Encoding                  ( encodeUtf8 )
+import Data.ByteString                     ( ByteString )
+import System.Directory                    ( createDirectoryIfMissing, doesFileExist, getModificationTime )
 import qualified Data.ByteString.Lazy as L ( ByteString )
 
 data TemperatureUnit = Kelvin | Celsius | Farenheit
