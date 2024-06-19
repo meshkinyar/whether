@@ -199,7 +199,7 @@ formatOutput config oneCall = do
     putStr . show $ temperature
     putStr " 💧 "
     putStr . show $ rH
-    putStr "% "
+    putStr "%"
     putStr " "
     putStr . show $ moonPhase
 
@@ -292,7 +292,7 @@ oneCallRequest (latitude, longitude) unit =
 
 ---- Miscellaneous Helpers
 isDay :: Current -> Bool
-isDay c = dt c >= sunrise c
+isDay c = dt c >= sunrise c && dt c <= sunset c
 
 cacheValid :: Maybe OneCallRoot -> POSIXTime -> POSIXTime -> Bool
 cacheValid cache modT t = 
