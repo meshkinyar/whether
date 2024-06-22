@@ -8,7 +8,7 @@ module Main where
 import Data.Aeson
 import Network.HTTP.Simple
 import Data.Ix                             ( inRange )
-import Control.Monad                       ( when, unless )
+import Control.Monad                       ( unless )
 import Data.Time.Clock.POSIX               ( getPOSIXTime, utcTimeToPOSIXSeconds, POSIXTime )
 import GHC.Generics                        ( Generic )
 import Data.Maybe                          ( fromJust )
@@ -144,7 +144,6 @@ main :: IO ()
 main = do
     config  <- getConfig 
     oneCall <- getOneCall config
-    cacheOneCall cachePath oneCall
     formatOutput config oneCall
 
 getConfig :: IO Config
@@ -178,8 +177,9 @@ getOneCall cfg = do
         oneCallResponse  <- callAPI (apiKey cfg)
                           $ oneCallRequest (lat location, lon location)
                           $ units cfg
-        maybe (error "Invalid One Call 3.0 API Response")
-              return (decode oneCallResponse :: Maybe OneCallRoot)
+        case (decode oneCallResponse :: Maybe OneCallRoot) of
+            Nothing -> error "Invalid One Call 3.0 API Response"
+            Just x  -> cacheOneCall x >> return x
 
 formatOutput :: Config -> OneCallRoot -> IO ()
 formatOutput config oneCall = do
@@ -221,11 +221,10 @@ decodeFileStrictIfExists path = do
     then decodeFileStrict cachePath
     else return Nothing
 
-cacheOneCall :: (ToJSON a) => FilePath -> a -> IO ()
-cacheOneCall path oc = do
+cacheOneCall :: (ToJSON a) => a -> IO ()
+cacheOneCall o = do
     createDirectoryIfMissing True ".cache"
-    exists <- doesFileExist path
-    when exists $ encodeFile cachePath oc
+    encodeFile cachePath o
 -- Pure Functions --
 
 ---- Constants
