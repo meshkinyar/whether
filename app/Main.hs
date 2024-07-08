@@ -1,7 +1,7 @@
-{-# LANGUAGE UnicodeSyntax      #-}
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE DeriveGeneric      #-}
-{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE UnicodeSyntax         #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE FlexibleInstances     #-}
 
 module Main where
 
@@ -10,135 +10,29 @@ import Network.HTTP.Simple
 import Data.Ix                             ( inRange )
 import Control.Monad                       ( unless )
 import Data.Time.Clock.POSIX               ( getPOSIXTime, utcTimeToPOSIXSeconds, POSIXTime )
-import GHC.Generics                        ( Generic )
 import Data.Maybe                          ( fromJust )
 import Data.Text                           ( Text, pack )
 import Data.Text.Encoding                  ( encodeUtf8 )
 import Data.ByteString                     ( ByteString )
 import System.Directory                    ( createDirectoryIfMissing, doesFileExist, getModificationTime )
+import Types
 import qualified Data.ByteString.Lazy as L ( ByteString )
 
-data TemperatureUnit = Kelvin | Celsius | Farenheit
-    deriving Generic
+-- Duplicate Fields --
+import qualified Types as G                ( MatchedLocation(lat, lon) )
+import qualified Types as R                ( OneCallRoot(lat, lon) )
+import qualified Types as C                ( Current(dt, sunrise, sunset, temp, feels_like, pressure
+                                           , humidity, dew_point, uvi, clouds, visibility
+                                           , wind_speed, wind_deg, wind_gust, weather)
+                                           )
+import qualified Types as M                ( Minute(dt) )
+import qualified Types as H                ( Hour(dt, temp, feels_like, pressure, humidity, dew_point
+                                           , uvi, clouds, visibility, wind_speed, wind_gust, weather, pop)
+                                           )  
+import qualified Types as D                ( Day(dt, sunrise, sunset, pressure, dew_point, humidity
+                                           , wind_speed, wind_deg, wind_gust, weather, clouds, pop, uvi)
+                                           )
 
-instance FromJSON TemperatureUnit
-instance ToJSON TemperatureUnit
-instance Show TemperatureUnit where
-    show u = case u of
-        Kelvin    -> "standard"
-        Celsius   -> "metric"
-        Farenheit -> "imperial"
-
-data MoonPhase = NewMoon  | WaxingCrescent | FirstQuarter | WaxingGibbous
-               | FullMoon | WaningGibbous  | LastQuarter  | WaningCrescent
-               deriving Generic
-
-instance Show MoonPhase where
-    show phase = case phase of
-        NewMoon        -> "🌑"
-        WaxingCrescent -> "🌒"
-        FirstQuarter   -> "🌓"
-        WaxingGibbous  -> "🌔"
-        FullMoon       -> "🌕"
-        WaningGibbous  -> "🌖"
-        LastQuarter    -> "🌗"
-        WaningCrescent -> "🌘"
-
--- Weather Conditions with Unicode Representations
-data WeatherCondition = ClearDay | ClearNight
-                      | Cloudy   | MostlyCloudy | PartlyCloudy
-                      | Rain     | RainPartial  | Thunderstorm | Tornado
-                      | Snow     | Sleet
-                      | Fog      | Mist         | Haze         | Smoke 
-                      deriving Generic
-
-instance FromJSON WeatherCondition
-
-instance Show WeatherCondition where
-    show condition = case condition of
-        ClearDay     -> "☀️ "
-        ClearNight   -> "✨"
-        Cloudy       -> "☁ "
-        PartlyCloudy -> "🌤️"
-        MostlyCloudy -> "🌥️"
-        Rain         -> "🌧️"
-        RainPartial  -> "🌦️"
-        Thunderstorm -> "⛈️ "
-        Tornado      -> "🌪️"
-        Snow         -> "❄️ "
-        Sleet        -> "🌨️"
-        Fog          -> "🌫️"
-        Mist         -> "🌁"
-        Haze         -> "🌁"
-        Smoke        -> "🔥"
-
-data Temperature = T Double TemperatureUnit
-    deriving Generic
-
-instance Show Temperature where
-    show (T t u) = show (round t :: Integer) ++ unit where
-        unit = case u of
-            Kelvin    -> "K"
-            Celsius   -> "°C"
-            Farenheit -> "°F"
-
-type Coordinates = (Double, Double)
-
-data Config = Config
-    { apiKey :: Text
-    , loc    :: Text
-    , units  :: TemperatureUnit
-    } deriving Generic
-instance FromJSON Config
-instance ToJSON Config
-
-type GeocodeRoot = [MatchedLocation]
-
-data MatchedLocation = MatchedLocation
-    { lat :: Double
-    , lon :: Double
-    } deriving Generic
-instance FromJSON MatchedLocation
-
-data OneCallRoot = OneCallRoot
-    { current :: Current
-    , daily   :: [Day]
-    } deriving Generic
-instance FromJSON OneCallRoot
-instance ToJSON OneCallRoot
-
-data Current = Current
-    { 
-      dt       :: POSIXTime
-    , sunrise  :: POSIXTime
-    , sunset   :: POSIXTime
-    , temp     :: Double
-    , humidity :: Integer
-    , weather  :: [Weather]
-    } deriving Generic
-instance FromJSON Current
-instance ToJSON Current
-
-newtype Day = Day
-    { moon_phase :: Double }
-    deriving Generic
-instance FromJSON Day
-instance ToJSON Day
-
-newtype Weather = Weather
-    { weather_id :: Integer }
-    deriving Generic
-
-instance FromJSON Weather where
-    parseJSON = genericParseJSON ( defaultOptions { fieldLabelModifier = weatherField } )
-      where
-        weatherField "weather_id" = "id"
-        weatherField s = s
-instance ToJSON Weather where
-    toJSON = genericToJSON defaultOptions { fieldLabelModifier = weatherField }
-      where
-        weatherField "weather_id" = "id"
-        weatherField s = s
 
 main :: IO ()
 main = do
@@ -175,11 +69,11 @@ getOneCall cfg = do
                                  []    -> error "Empty Response"
                                  (x:_) -> x
         oneCallResponse  <- callAPI (apiKey cfg)
-                          $ oneCallRequest (lat location, lon location)
+                          $ oneCallRequest (G.lat location, G.lon location)
                           $ units cfg
-        case (decode oneCallResponse :: Maybe OneCallRoot) of
-            Nothing -> error "Invalid One Call 3.0 API Response"
-            Just x  -> cacheOneCall x >> return x
+        case (eitherDecode oneCallResponse :: Either String OneCallRoot) of
+            Left  x   -> error x
+            Right x   -> cacheOneCall x >> return x
 
 formatOutput :: Config -> OneCallRoot -> IO ()
 formatOutput config oneCall = do
@@ -188,10 +82,9 @@ formatOutput config oneCall = do
                      $ case weatherList of
                            []    -> error "Empty response"
                            (x:_) -> x
-                       where weatherList = weather $ current oneCall
-    let temperature  = T (temp $ current oneCall) 
-                     $ units config
-    let rH           = humidity $ current oneCall
+                       where weatherList = C.weather $ current oneCall
+    let temperature  = T (C.temp $ current oneCall) $ units config
+    let rH           = C.humidity $ current oneCall
     let moonPhase    = toMoonPhase
                      $ moon_phase
                      $ case dayList of
@@ -289,21 +182,21 @@ geocodeRequest location =
     owmRequest
 
 oneCallRequest :: Coordinates -> TemperatureUnit -> Request
-oneCallRequest (latitude, longitude) unit = 
+oneCallRequest (inputLat, inputLon) unit = 
     setRequestPath "/data/3.0/onecall"
-  $ setRequestQueryString [ ("lat"  , Just $ formatCoord latitude)
-                          , ("lon"  , Just $ formatCoord longitude)
+  $ setRequestQueryString [ ("lat"  , Just $ formatCoord inputLat)
+                          , ("lon"  , Just $ formatCoord inputLon)
                           , ("units", Just $ formatUnits unit)
                           ]
     owmRequest
 
 ---- Miscellaneous Helpers
 isDay :: Current -> Bool
-isDay c = dt c >= sunrise c && dt c <= sunset c
+isDay c = C.dt c >= C.sunrise c && C.dt c <= C.sunset c
 
 cacheValid :: Maybe OneCallRoot -> POSIXTime -> POSIXTime -> Bool
 cacheValid cache modT t = 
     case cache of
         Nothing -> False
-        Just x  -> modT  <= dt (current x)
-                && t     <= dt (current x) + 600
+        Just x  -> modT  <= C.dt (current x)
+                && t     <= C.dt (current x) + 600
