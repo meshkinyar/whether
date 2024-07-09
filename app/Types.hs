@@ -243,7 +243,8 @@ instance ToJSON Weather where
 _day :: String -> String
 _day "d_temp" = "temp"
 _day "d_feels_like" = "feels_like"
-_day "d_precipitation" = "rain"
+_day "d_rain" = "rain"
+_day "d_snow" = "snow"
 _day x = x
 
 _weather :: String -> String
