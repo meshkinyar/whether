@@ -1,4 +1,3 @@
-{-# LANGUAGE UnicodeSyntax         #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleInstances     #-}
