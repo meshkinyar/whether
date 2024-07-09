@@ -239,11 +239,6 @@ instance ToJSON Weather where
     toJSON = genericToJSON defaultOptions { fieldLabelModifier = _weather }
 
 -- Label Functions
-toLabel :: (String -> String) -> (Day -> Value)
-toLabel f = genericToJSON $ defaultOptions { fieldLabelModifier = f } 
-
-fromLabel :: (String -> String) -> (Day -> Value)
-fromLabel f = genericToJSON $ defaultOptions { fieldLabelModifier = f } 
 
 _day :: String -> String
 _day "d_temp" = "temp"
