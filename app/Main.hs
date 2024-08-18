@@ -9,11 +9,12 @@ import Network.HTTP.Simple
 import Data.Ix                             ( inRange )
 import Control.Monad                       ( unless )
 import Data.Time.Clock.POSIX               ( getPOSIXTime, utcTimeToPOSIXSeconds, POSIXTime )
-import Data.Maybe                          ( fromJust )
 import Data.Text                           ( Text, pack )
 import Data.Text.Encoding                  ( encodeUtf8 )
 import Data.ByteString                     ( ByteString )
-import System.Directory                    ( createDirectoryIfMissing, doesFileExist, getModificationTime )
+import System.Directory                    ( XdgDirectory( XdgConfig ), getXdgDirectory, createDirectoryIfMissing, doesFileExist, getModificationTime )
+import System.FilePath                     ( takeDirectory )
+
 import Types
 import qualified Data.ByteString.Lazy as L ( ByteString )
 
@@ -41,42 +42,43 @@ main = do
 
 getConfig :: IO Config
 getConfig = do 
-    configExists <- doesFileExist "config.json"
-    unless configExists $ encodeFile "config.json" defaultConfig 
-                        >> putStrLn "No config.json found, creating default config..."
-                        >> error "Fill out the created config.json and run whether again."
-    configFile <- decodeFileStrict "config.json" :: IO (Maybe Config)
+    configPath   <- getXdgDirectory XdgConfig configRelPath
+    configExists <- doesFileExist configPath
+    unless configExists $  createDirectoryIfMissing True (takeDirectory configPath)
+                        >> encodeFile configPath defaultConfig 
+                        >> putStrLn "No config.json found, creating default config.json in ~/.config/whether..."
+                        >> error "Add a valid API key to the created config.json and run whether again."
+    configFile   <- decodeFileStrict "config.json" :: IO (Maybe ConfigRoot)
+    lastModification <- getModificationTime configPath
     case configFile of
         Nothing -> error "Invalid config.json"
-        Just x  -> return x
+        Just root  -> return (root, lastModification)  
 
 getOneCall :: Config -> IO OneCallRoot
-getOneCall cfg = do
-    cacheFile <- decodeFileStrictIfExists cachePath :: IO (Maybe OneCallRoot)
-    lastModification <- getModificationTime "config.json"
-    useCache <- cacheValid cacheFile (utcTimeToPOSIXSeconds lastModification) <$> getPOSIXTime
-
-    if useCache
-    then do
-        return $ fromJust cacheFile
-    else do
-        geocodeResponse  <- callAPI (apiKey cfg) 
-                         $  geocodeRequest
-                         $  loc cfg
-        geocode          <- maybe  (error "Invalid Geocoding Response. Ensure that your API key in config.json is valid.")
-                                   return (decode geocodeResponse :: Maybe GeocodeRoot)
-        let location     = case geocode of
-                                 []    -> error "Empty Response"
-                                 (x:_) -> x
-        oneCallResponse  <- callAPI (apiKey cfg)
-                          $ oneCallRequest (G.lat location, G.lon location)
-                          $ units cfg
-        case (eitherDecode oneCallResponse :: Either String OneCallRoot) of
-            Left  x   -> error x
-            Right x   -> cacheOneCall x >> return x
+getOneCall (cfg, t) = do
+    cacheFile        <- decodeFileStrictIfExists cachePath :: IO (Maybe OneCallRoot)
+    lastCache        <- cacheIfValid cacheFile (utcTimeToPOSIXSeconds t) <$> getPOSIXTime
+    case lastCache of
+        Just x  -> return x
+        Nothing -> do
+            -- TODO: separate geocoding cache
+            geocodeResponse  <- callAPI (apiKey cfg) 
+                             $  geocodeRequest
+                             $  loc cfg
+            geocode          <- maybe  (error "Invalid Geocoding Response. Ensure that your API key in config.json is valid.")
+                                       return (decode geocodeResponse :: Maybe GeocodeRoot)
+            let location     = case geocode of
+                                     []    -> error "Empty Response"
+                                     (x:_) -> x
+            oneCallResponse  <- callAPI (apiKey cfg)
+                              $ oneCallRequest (G.lat location, G.lon location)
+                              $ units cfg
+            case (eitherDecode oneCallResponse :: Either String OneCallRoot) of
+                Left  x   -> error x
+                Right x   -> cacheOneCall x >> return x
 
 formatOutput :: Config -> OneCallRoot -> IO ()
-formatOutput config oneCall = do
+formatOutput (config, _) oneCall = do
     let weatherIcon  = toWeatherCondition (current oneCall)
                      $ weather_id
                      $ case weatherList of
@@ -124,8 +126,11 @@ cacheOneCall o = do
 cachePath :: FilePath
 cachePath = ".cache/cache.json"
 
-defaultConfig :: Config
-defaultConfig = Config { apiKey="Your API Key", loc="North Pole", units=Celsius }
+defaultConfig :: ConfigRoot
+defaultConfig = ConfigRoot { apiKey="Your API Key", loc="North Pole", units=Celsius }
+
+configRelPath :: FilePath
+configRelPath = "whether/config.json"
 
 ---- Conversions
 toMoonPhase :: Double -> MoonPhase
@@ -194,9 +199,13 @@ oneCallRequest (inputLat, inputLon) unit =
 isDay :: Current -> Bool
 isDay c = C.dt c >= C.sunrise c && C.dt c <= C.sunset c
 
-cacheValid :: Maybe OneCallRoot -> POSIXTime -> POSIXTime -> Bool
-cacheValid cache modT t = 
+cacheIfValid :: Maybe OneCallRoot -> POSIXTime -> POSIXTime -> Maybe OneCallRoot
+cacheIfValid cache modT t = 
     case cache of
-        Nothing -> False
-        Just x  -> modT  <= C.dt (current x)
-                && t     <= C.dt (current x) + 600
+        Nothing -> Nothing
+        Just x  -> case isValid of 
+            False -> Nothing
+            True  -> Just x
+          where
+            isValid = modT <= C.dt (current x)
+                   && t    <= C.dt (current x) + 600

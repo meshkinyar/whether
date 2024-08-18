@@ -82,6 +82,7 @@ executable whether
         , binary
         , aeson
         , directory
+        , filepath
 
     -- Directories containing source files.
     hs-source-dirs:   app

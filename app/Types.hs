@@ -6,9 +6,11 @@
 module Types where
 
 import Data.Aeson
+import Data.Time.Clock                     ( UTCTime )
 import Data.Time.Clock.POSIX               ( POSIXTime )
 import GHC.Generics                        ( Generic )
 import Data.Text                           ( Text )
+
 
 data TemperatureUnit = Kelvin | Celsius | Farenheit
     deriving Generic
@@ -76,14 +78,16 @@ instance Show Temperature where
 
 type Coordinates = (Double, Double)
 
-data Config = Config
+-- Wrapper for config file metadata
+type Config = (ConfigRoot, UTCTime)
+data ConfigRoot = ConfigRoot
     { apiKey :: Text
     , loc    :: Text
     , units  :: TemperatureUnit
     } 
     deriving Generic
-instance FromJSON Config
-instance ToJSON Config
+instance FromJSON ConfigRoot
+instance ToJSON ConfigRoot
 
 type GeocodeRoot = [MatchedLocation]
 
