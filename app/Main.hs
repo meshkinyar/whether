@@ -43,7 +43,8 @@ getConfig :: IO Config
 getConfig = do 
     configExists <- doesFileExist "config.json"
     unless configExists $ encodeFile "config.json" defaultConfig 
-                        >> putStrLn "No config.json found, creating default config"
+                        >> putStrLn "No config.json found, creating default config..."
+                        >> error "Fill out the created config.json and run whether again."
     configFile <- decodeFileStrict "config.json" :: IO (Maybe Config)
     case configFile of
         Nothing -> error "Invalid config.json"
