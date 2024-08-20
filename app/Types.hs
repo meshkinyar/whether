@@ -13,15 +13,10 @@ import Data.Text                           ( Text )
 
 
 data TemperatureUnit = Kelvin | Celsius | Farenheit
-    deriving Generic
+    deriving (Generic, Read, Show)
 
 instance FromJSON TemperatureUnit
 instance ToJSON TemperatureUnit
-instance Show TemperatureUnit where
-    show u = case u of
-        Kelvin    -> "standard"
-        Celsius   -> "metric"
-        Farenheit -> "imperial"
 
 data MoonPhase = NewMoon  | WaxingCrescent | FirstQuarter | WaxingGibbous
                | FullMoon | WaningGibbous  | LastQuarter  | WaningCrescent
@@ -229,10 +224,10 @@ instance FromJSON DayFeelsLike
 instance ToJSON DayFeelsLike
 
 data Weather = Weather
-    { weather_id  :: Integer
-    , main        :: Text
-    , description :: Text
-    , icon        :: Text
+    { weather_id   :: Integer
+    , weather_main :: Text
+    , description  :: Text
+    , icon         :: Text
     }
     deriving Generic
 
@@ -252,6 +247,7 @@ _day x = x
 
 _weather :: String -> String
 _weather "weather_id" = "id"
+_weather "weather_main" = "main"
 _weather s = s
 
 _precipitation :: String -> String

@@ -83,6 +83,7 @@ executable whether
         , aeson
         , directory
         , filepath
+        , casing
 
     -- Directories containing source files.
     hs-source-dirs:   app

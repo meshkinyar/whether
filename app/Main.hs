@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 
 module Main where
 
@@ -11,9 +12,13 @@ import Control.Monad                       ( unless )
 import Data.Time.Clock.POSIX               ( getPOSIXTime, utcTimeToPOSIXSeconds, POSIXTime )
 import Data.Text                           ( Text, pack )
 import Data.Text.Encoding                  ( encodeUtf8 )
+import Text.Read                           ( readMaybe )
+import Text.Printf                         ( printf )
+import Text.Casing                         ( pascal )
 import Data.ByteString                     ( ByteString )
-import System.Directory                    ( XdgDirectory( XdgConfig ), getXdgDirectory, createDirectoryIfMissing, doesFileExist, getModificationTime )
+import System.Directory                    ( XdgDirectory( XdgConfig, XdgCache ), getXdgDirectory, createDirectoryIfMissing, doesFileExist, getModificationTime )
 import System.FilePath                     ( takeDirectory )
+import System.IO
 
 import Types
 import qualified Data.ByteString.Lazy as L ( ByteString )
@@ -42,22 +47,20 @@ main = do
 
 getConfig :: IO Config
 getConfig = do 
-    configPath   <- getXdgDirectory XdgConfig configRelPath
-    configExists <- doesFileExist configPath
-    unless configExists $  createDirectoryIfMissing True (takeDirectory configPath)
-                        >> encodeFile configPath defaultConfig 
-                        >> putStrLn "No config.json found, creating default config.json in ~/.config/whether..."
-                        >> error "Add a valid API key to the created config.json and run whether again."
-    configFile   <- decodeFileStrict "config.json" :: IO (Maybe ConfigRoot)
+    configPath      <- getConfigPath :: IO FilePath
+    configExists    <- doesFileExist configPath
+    unless configExists $ createConfig configPath
+    configFile       <- decodeFileStrict configPath :: IO (Maybe ConfigRoot)
     lastModification <- getModificationTime configPath
     case configFile of
-        Nothing -> error "Invalid config.json"
+        Nothing    -> error "Invalid config.json"
         Just root  -> return (root, lastModification)  
 
 getOneCall :: Config -> IO OneCallRoot
 getOneCall (cfg, t) = do
-    cacheFile        <- decodeFileStrictIfExists cachePath :: IO (Maybe OneCallRoot)
-    lastCache        <- cacheIfValid cacheFile (utcTimeToPOSIXSeconds t) <$> getPOSIXTime
+    cachePath <- getCachePath
+    cacheFile <- decodeFileStrictIfExists cachePath :: IO (Maybe OneCallRoot)
+    lastCache <- cacheIfValid cacheFile (utcTimeToPOSIXSeconds t) <$> getPOSIXTime
     case lastCache of
         Just x  -> return x
         Nothing -> do
@@ -113,24 +116,47 @@ decodeFileStrictIfExists :: (FromJSON a) => FilePath -> IO (Maybe a)
 decodeFileStrictIfExists path = do
     exists <- doesFileExist path
     if exists 
-    then decodeFileStrict cachePath
-    else return Nothing
+        then decodeFileStrict path
+        else return Nothing
 
 cacheOneCall :: (ToJSON a) => a -> IO ()
-cacheOneCall o = do
-    createDirectoryIfMissing True ".cache"
-    encodeFile cachePath o
+cacheOneCall onecall = do
+    cachePath <- getCachePath
+    createDirectoryIfMissing True $ takeDirectory cachePath
+    encodeFile cachePath onecall
+
+createConfig :: FilePath -> IO ()
+createConfig path = do
+    hSetBuffering stdout NoBuffering
+    putStrLn  $ "No config.json found, creating new config.json at" ++ path
+    putStr   "Please enter the name of your location: "
+    newLoc    <- getLine
+    putStr   "Please enter your API Key: "
+    newApiKey <- getLine
+    newUnits  <- validateInput Celsius "Please choose a unit system"
+    createDirectoryIfMissing True $ takeDirectory path
+    encodeFile path $ newConfig (newApiKey, newLoc, newUnits)
+
+-- IO Helpers --
+
+getConfigPath :: IO FilePath
+getConfigPath = getXdgDirectory XdgConfig "whether/config.json"
+
+getCachePath :: IO FilePath
+getCachePath = getXdgDirectory XdgCache "whether/cache.json"
+
+validateInput :: forall a . (Show a, Read a) => a -> String -> IO String
+validateInput _default prompt = do
+    putStr $ printf "%s [default: %s]: " prompt $ show _default
+    input <- getLine
+    if input == ""
+        then return $ show _default
+        else case readMaybe (pascal input) :: Maybe a of
+            Nothing -> validateInput _default "Invalid input. Choose one of"
+            Just _  -> return input
+
+
 -- Pure Functions --
-
----- Constants
-cachePath :: FilePath
-cachePath = ".cache/cache.json"
-
-defaultConfig :: ConfigRoot
-defaultConfig = ConfigRoot { apiKey="Your API Key", loc="North Pole", units=Celsius }
-
-configRelPath :: FilePath
-configRelPath = "whether/config.json"
 
 ---- Conversions
 toMoonPhase :: Double -> MoonPhase
@@ -167,7 +193,7 @@ formatCoord :: Double -> ByteString
 formatCoord x = encodeUtf8 $ pack $ show x
 
 formatUnits :: TemperatureUnit -> ByteString
-formatUnits x = encodeUtf8 $ pack $ show x
+formatUnits x = encodeUtf8 $ pack $ oneCallUnits x
 
 ---- Simple HTTP Request
 owmRequest :: Request
@@ -196,8 +222,23 @@ oneCallRequest (inputLat, inputLon) unit =
     owmRequest
 
 ---- Miscellaneous Helpers
+
 isDay :: Current -> Bool
 isDay c = C.dt c >= C.sunrise c && C.dt c <= C.sunset c
+
+oneCallUnits :: TemperatureUnit -> String
+oneCallUnits u = case u of
+   Kelvin    -> "standard"
+   Celsius   -> "metric"
+   Farenheit -> "imperial"
+
+
+newConfig :: (String, String, String) -> ConfigRoot
+newConfig (k, l, u) =
+    ConfigRoot { apiKey = pack k
+               , loc    = pack l
+               , units  = read u :: TemperatureUnit
+               }
 
 cacheIfValid :: Maybe OneCallRoot -> POSIXTime -> POSIXTime -> Maybe OneCallRoot
 cacheIfValid cache modT t = 
