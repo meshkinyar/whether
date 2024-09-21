@@ -99,9 +99,9 @@ data OneCallRoot = OneCallRoot
     , timezone        :: Text
     , timezone_offset :: Integer
     , current         :: Current
-    , minutely        :: [Minute]
-    , hourly          :: [Hour]
-    , daily           :: [Day]
+    , minutely        :: [Minutely]
+    , hourly          :: [Hourly]
+    , daily           :: [Daily]
     } 
     deriving Generic
 instance FromJSON OneCallRoot
@@ -118,7 +118,7 @@ data Current = Current
     , dew_point  :: Double
     , uvi        :: Double
     , clouds     :: Integer
-    , visibility :: Integer
+    , visibility :: Maybe Integer
     , wind_speed :: Double
     , wind_deg   :: Integer
     , wind_gust  :: Maybe Double
@@ -130,19 +130,19 @@ data Current = Current
 instance FromJSON Current
 instance ToJSON Current
 
-data Minute = Minute
+data Minutely = Minutely
     { dt            :: POSIXTime
     , precipitation :: Double
     } 
     deriving Generic
-instance FromJSON Minute where
+instance FromJSON Minutely where
     parseJSON = genericParseJSON $ defaultOptions { fieldLabelModifier = label }
       where
         label "m_dt" = "dt"
         label x      = x
-instance ToJSON Minute
+instance ToJSON Minutely
 
-data Hour = Hour
+data Hourly = Hourly
     { dt         :: POSIXTime
     , temp       :: Double
     , feels_like :: Double
@@ -151,7 +151,7 @@ data Hour = Hour
     , dew_point  :: Double
     , uvi        :: Float
     , clouds     :: Integer
-    , visibility :: Integer
+    , visibility :: Maybe Integer
     , wind_speed :: Double
     , wind_deg   :: Integer
     , wind_gust  :: Maybe Double
@@ -161,10 +161,10 @@ data Hour = Hour
     , snow       :: Maybe Precipitation
     }
     deriving Generic
-instance FromJSON Hour
-instance ToJSON Hour
+instance FromJSON Hourly
+instance ToJSON Hourly
 
-data Day = Day
+data Daily = Daily
     { dt            :: POSIXTime
     , sunrise       :: POSIXTime
     , sunset        :: POSIXTime
@@ -172,8 +172,8 @@ data Day = Day
     , moonset       :: POSIXTime
     , moon_phase    :: Double
     , summary       :: Text
-    , d_temp        :: DayTemp
-    , d_feels_like  :: DayFeelsLike
+    , d_temp        :: DailyTemp
+    , d_feels_like  :: DailyFeelsLike
     , pressure      :: Integer
     , humidity      :: Integer
     , dew_point     :: Double
@@ -188,10 +188,10 @@ data Day = Day
     , uvi           :: Double
     }
     deriving Generic
-instance FromJSON Day where
-    parseJSON = genericParseJSON $ defaultOptions { fieldLabelModifier = _day }
-instance ToJSON Day where
-    toJSON = genericToJSON $ defaultOptions { fieldLabelModifier = _day }
+instance FromJSON Daily where
+    parseJSON = genericParseJSON $ defaultOptions { fieldLabelModifier = _daily }
+instance ToJSON Daily where
+    toJSON = genericToJSON $ defaultOptions { fieldLabelModifier = _daily }
 
 newtype Precipitation = Precipitation
     { oneH :: Double }
@@ -201,7 +201,7 @@ instance FromJSON Precipitation where
 instance ToJSON Precipitation where
     toJSON = genericToJSON $ defaultOptions { fieldLabelModifier = _precipitation }
 
-data DayTemp = DayTemp
+data DailyTemp = DailyTemp
     { day   :: Double
     , min   :: Double
     , max   :: Double
@@ -210,18 +210,18 @@ data DayTemp = DayTemp
     , morn  :: Double
     }
     deriving Generic
-instance FromJSON DayTemp
-instance ToJSON DayTemp
+instance FromJSON DailyTemp
+instance ToJSON DailyTemp
 
-data DayFeelsLike = DayFeelsLike
+data DailyFeelsLike = DailyFeelsLike
     { day   :: Double
     , night :: Double
     , eve   :: Double
     , morn  :: Double
     }
     deriving Generic
-instance FromJSON DayFeelsLike
-instance ToJSON DayFeelsLike
+instance FromJSON DailyFeelsLike
+instance ToJSON DailyFeelsLike
 
 data Weather = Weather
     { weather_id   :: Integer
@@ -238,12 +238,12 @@ instance ToJSON Weather where
 
 -- Label Functions
 
-_day :: String -> String
-_day "d_temp" = "temp"
-_day "d_feels_like" = "feels_like"
-_day "d_rain" = "rain"
-_day "d_snow" = "snow"
-_day x = x
+_daily :: String -> String
+_daily "d_temp" = "temp"
+_daily "d_feels_like" = "feels_like"
+_daily "d_rain" = "rain"
+_daily "d_snow" = "snow"
+_daily x = x
 
 _weather :: String -> String
 _weather "weather_id" = "id"

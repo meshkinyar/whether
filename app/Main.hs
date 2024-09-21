@@ -30,11 +30,11 @@ import qualified Types as C                ( Current(dt, sunrise, sunset, temp, 
                                            , humidity, dew_point, uvi, clouds, visibility
                                            , wind_speed, wind_deg, wind_gust, weather)
                                            )
-import qualified Types as M                ( Minute(dt) )
-import qualified Types as H                ( Hour(dt, temp, feels_like, pressure, humidity, dew_point
+import qualified Types as M                ( Minutely(dt) )
+import qualified Types as H                ( Hourly(dt, temp, feels_like, pressure, humidity, dew_point
                                            , uvi, clouds, visibility, wind_speed, wind_gust, weather, pop)
                                            )  
-import qualified Types as D                ( Day(dt, sunrise, sunset, pressure, dew_point, humidity
+import qualified Types as D                ( Daily(dt, sunrise, sunset, pressure, dew_point, humidity
                                            , wind_speed, wind_deg, wind_gust, weather, clouds, pop, uvi)
                                            )
 
@@ -77,7 +77,7 @@ getOneCall (cfg, t) = do
                               $ oneCallRequest (G.lat location, G.lon location)
                               $ units cfg
             case (eitherDecode oneCallResponse :: Either String OneCallRoot) of
-                Left  x   -> error x
+                Left  x   -> print oneCallResponse >> error x
                 Right x   -> cacheOneCall x >> return x
 
 formatOutput :: Config -> OneCallRoot -> IO ()
