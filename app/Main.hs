@@ -8,15 +8,17 @@ module Main where
 import Data.Aeson
 import Network.HTTP.Simple
 import Data.Ix                             ( inRange )
-import Control.Monad                       ( unless )
-import Data.Time.Clock.POSIX               ( getPOSIXTime, utcTimeToPOSIXSeconds, POSIXTime )
+import Control.Monad                       ( when, unless )
+import Data.Time.Clock.POSIX               
 import Data.Text                           ( Text, pack )
 import Data.Text.Encoding                  ( encodeUtf8 )
+import Data.ByteString                     ( ByteString )
 import Text.Read                           ( readMaybe )
 import Text.Printf                         ( printf )
 import Text.Casing                         ( pascal )
-import Data.ByteString                     ( ByteString )
-import System.Directory                    ( XdgDirectory( XdgConfig, XdgCache ), getXdgDirectory, createDirectoryIfMissing, doesFileExist, getModificationTime )
+import System.Posix.Types
+import System.Posix.Files                  ( getFileStatus, modificationTime )
+import System.Directory                    ( XdgDirectory( XdgConfig, XdgCache, XdgState ), getXdgDirectory, createDirectoryIfMissing, doesFileExist )
 import System.FilePath                     ( takeDirectory )
 import System.IO
 
@@ -47,20 +49,33 @@ main = do
 
 getConfig :: IO Config
 getConfig = do 
-    configPath      <- getConfigPath :: IO FilePath
-    configExists    <- doesFileExist configPath
+    configPath   <- getConfigPath :: IO FilePath
+    configExists <- doesFileExist configPath
     unless configExists $ createConfig configPath
-    configFile       <- decodeFileStrict configPath :: IO (Maybe ConfigRoot)
-    lastModification <- getModificationTime configPath
+    configFile   <- decodeFileStrict configPath :: IO (Maybe ConfigRoot)
+    lastMod      <- modificationTime <$> getFileStatus configPath
     case configFile of
-        Nothing    -> error "Invalid config.json"
-        Just root  -> return (root, lastModification)  
+        Nothing   -> error "Invalid config.json"
+        Just cfg  -> return (cfg, realToFrac lastMod)  
+
+getLockTime :: IO POSIXTime
+getLockTime = do
+    lockPath   <- getXdgDirectory XdgState "whether/lock"
+    lockExists <- doesFileExist lockPath
+    if lockExists 
+    then do
+        t <- modificationTime <$> getFileStatus lockPath
+        return $ realToFrac t
+    else return 0
 
 getOneCall :: Config -> IO OneCallRoot
-getOneCall (cfg, t) = do
+getOneCall (cfg, lastMod) = do
+    time0     <- getPOSIXTime
     cachePath <- getCachePath
+    lockT     <- getLockTime
+    when (time0 > realToFrac lockT + 600) $ error "Saving your API calls"
     cacheFile <- decodeFileStrictIfExists cachePath :: IO (Maybe OneCallRoot)
-    lastCache <- cacheIfValid cacheFile (utcTimeToPOSIXSeconds t) <$> getPOSIXTime
+    let lastCache = cacheIfValid cacheFile lastMod time0
     case lastCache of
         Just x  -> return x
         Nothing -> do
@@ -77,7 +92,8 @@ getOneCall (cfg, t) = do
                               $ oneCallRequest (G.lat location, G.lon location)
                               $ units cfg
             case (eitherDecode oneCallResponse :: Either String OneCallRoot) of
-                Left  x   -> print oneCallResponse >> error x
+                Left _    -> do lockTimer
+                                error "something broke :("
                 Right x   -> cacheOneCall x >> return x
 
 formatOutput :: Config -> OneCallRoot -> IO ()
@@ -155,6 +171,11 @@ validateInput _default prompt = do
             Nothing -> validateInput _default "Invalid input. Choose one of"
             Just _  -> return input
 
+lockTimer :: IO ()
+lockTimer = do 
+    lockPath <- getXdgDirectory XdgState "whether"
+    createDirectoryIfMissing True lockPath
+    writeFile ( lockPath <> "lock" ) ""
 
 -- Pure Functions --
 
@@ -250,3 +271,4 @@ cacheIfValid cache modT t =
           where
             isValid = modT <= C.dt (current x)
                    && t    <= C.dt (current x) + 600
+

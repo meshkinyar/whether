@@ -74,7 +74,7 @@ instance Show Temperature where
 type Coordinates = (Double, Double)
 
 -- Wrapper for config file metadata
-type Config = (ConfigRoot, UTCTime)
+type Config = (ConfigRoot, POSIXTime)
 data ConfigRoot = ConfigRoot
     { apiKey :: Text
     , loc    :: Text

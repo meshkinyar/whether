@@ -85,6 +85,7 @@ executable whether
         , filepath
         , casing
         , char-boxdrawing
+        , unix
 
     -- Directories containing source files.
     hs-source-dirs:   app
