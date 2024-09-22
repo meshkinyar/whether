@@ -73,7 +73,7 @@ getOneCall (cfg, lastMod) = do
     time0     <- getPOSIXTime
     cachePath <- getCachePath
     lockT     <- getLockTime
-    when (time0 > realToFrac lockT + 600) $ error "Saving your API calls"
+    when (time0 < realToFrac lockT + 600) $ error "Saving your API calls"
     cacheFile <- decodeFileStrictIfExists cachePath :: IO (Maybe OneCallRoot)
     let lastCache = cacheIfValid cacheFile lastMod time0
     case lastCache of
