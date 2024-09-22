@@ -6,7 +6,6 @@
 module Types where
 
 import Data.Aeson
-import Data.Time.Clock                     ( UTCTime )
 import Data.Time.Clock.POSIX               ( POSIXTime )
 import GHC.Generics                        ( Generic )
 import Data.Text                           ( Text )
@@ -74,24 +73,26 @@ instance Show Temperature where
 type Coordinates = (Double, Double)
 
 -- Wrapper for config file metadata
-type Config = (ConfigRoot, POSIXTime)
-data ConfigRoot = ConfigRoot
+data Config = Config
     { apiKey :: Text
     , loc    :: Text
     , units  :: TemperatureUnit
     } 
     deriving Generic
-instance FromJSON ConfigRoot
-instance ToJSON ConfigRoot
+instance FromJSON Config
+instance ToJSON Config
 
 type GeocodeRoot = [MatchedLocation]
 
 data MatchedLocation = MatchedLocation
-    { lat  :: Double
-    , lon  :: Double
+    { name    :: Text
+    , lat     :: Double
+    , lon     :: Double
+    , country :: Text
     } 
     deriving Generic
 instance FromJSON MatchedLocation
+instance ToJSON MatchedLocation
 
 data OneCallRoot = OneCallRoot
     { lat             :: Double
@@ -235,6 +236,7 @@ instance FromJSON Weather where
     parseJSON = genericParseJSON $ defaultOptions { fieldLabelModifier = _weather }
 instance ToJSON Weather where
     toJSON = genericToJSON defaultOptions { fieldLabelModifier = _weather }
+
 
 -- Label Functions
 

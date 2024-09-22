@@ -16,10 +16,9 @@ import Data.ByteString                     ( ByteString )
 import Text.Read                           ( readMaybe )
 import Text.Printf                         ( printf )
 import Text.Casing                         ( pascal )
-import System.Posix.Types
 import System.Posix.Files                  ( getFileStatus, modificationTime )
 import System.Directory                    ( XdgDirectory( XdgConfig, XdgCache, XdgState ), getXdgDirectory, createDirectoryIfMissing, doesFileExist )
-import System.FilePath                     ( takeDirectory )
+import System.FilePath                     ( takeDirectory, (</>) )
 import System.IO
 
 import Types
@@ -48,15 +47,43 @@ main = do
     formatOutput config oneCall
 
 getConfig :: IO Config
-getConfig = do 
-    configPath   <- getConfigPath :: IO FilePath
+getConfig = do
+    configPath   <- getXdgDirectory XdgConfig "whether/config.json"
     configExists <- doesFileExist configPath
     unless configExists $ createConfig configPath
-    configFile   <- decodeFileStrict configPath :: IO (Maybe ConfigRoot)
-    lastMod      <- modificationTime <$> getFileStatus configPath
+    configFile   <- decodeFileStrict configPath :: IO (Maybe Config)
     case configFile of
         Nothing   -> error "Invalid config.json"
-        Just cfg  -> return (cfg, realToFrac lastMod)  
+        Just cfg  -> return cfg 
+
+getOneCall :: Config -> IO OneCallRoot
+getOneCall cfg = do
+    time0         <- getPOSIXTime
+    lockT         <- getLockTime
+
+    when (time0 < realToFrac lockT + 300) $ error "Saving your API calls"
+
+    cacheFile     <- getJSONCache "oneCall.json" :: IO (Maybe OneCallRoot)
+    lastMod       <- getConfigLastMod
+    let lastCache = case cacheFile of
+            Nothing -> Nothing
+            Just x  -> case isValid of 
+                False -> Nothing
+                True  -> Just x
+              where
+                isValid = lastMod <= C.dt (current x)
+                       && time0   <= C.dt (current x) + 600
+    case lastCache of
+        Just x  -> return x
+        Nothing -> do
+            location    <- getLocation cfg
+            oneCallResp <- callAPI (apiKey cfg)
+                         $ oneCallRequest (G.lat location, G.lon location)
+                         $ units cfg
+            case (eitherDecode oneCallResp :: Either String OneCallRoot) of
+                Left _    -> do lockTimer
+                                error "something broke :("
+                Right x   -> cacheJSON "oneCall.json" x >> return x
 
 getLockTime :: IO POSIXTime
 getLockTime = do
@@ -68,36 +95,28 @@ getLockTime = do
         return $ realToFrac t
     else return 0
 
-getOneCall :: Config -> IO OneCallRoot
-getOneCall (cfg, lastMod) = do
-    time0     <- getPOSIXTime
-    cachePath <- getCachePath
-    lockT     <- getLockTime
-    when (time0 < realToFrac lockT + 600) $ error "Saving your API calls"
-    cacheFile <- decodeFileStrictIfExists cachePath :: IO (Maybe OneCallRoot)
-    let lastCache = cacheIfValid cacheFile lastMod time0
-    case lastCache of
-        Just x  -> return x
-        Nothing -> do
-            -- TODO: separate geocoding cache
-            geocodeResponse  <- callAPI (apiKey cfg) 
-                             $  geocodeRequest
-                             $  loc cfg
-            geocode          <- maybe  (error "Invalid Geocoding Response. Ensure that your API key in config.json is valid.")
-                                       return (decode geocodeResponse :: Maybe GeocodeRoot)
-            let location     = case geocode of
-                                     []    -> error "Empty Response"
-                                     (x:_) -> x
-            oneCallResponse  <- callAPI (apiKey cfg)
-                              $ oneCallRequest (G.lat location, G.lon location)
-                              $ units cfg
-            case (eitherDecode oneCallResponse :: Either String OneCallRoot) of
-                Left _    -> do lockTimer
-                                error "something broke :("
-                Right x   -> cacheOneCall x >> return x
+getLocation :: Config -> IO (MatchedLocation)
+getLocation cfg = do
+    geocodeCache <- getJSONCache "geocode.json" :: IO (Maybe GeocodeRoot)
+    case geocodeCache of
+        Just (match:_) -> 
+            if (name match == loc cfg) 
+              then return match
+              else getGeocode 
+        _              -> getGeocode
+      where
+        getGeocode = do
+            geocodeResp <- callAPI (apiKey cfg) 
+                        $  geocodeRequest
+                        $  loc cfg
+            case (decode geocodeResp :: Maybe GeocodeRoot) of
+                Nothing    -> error "Invalid Geocoding Response. Ensure that your API key in config.json is valid."
+                Just []    -> error "Empty Geocoding Response."
+                Just (g:_) -> cacheJSON "geocode.json" g >> return g
+
 
 formatOutput :: Config -> OneCallRoot -> IO ()
-formatOutput (config, _) oneCall = do
+formatOutput config oneCall = do
     let weatherIcon  = toWeatherCondition (current oneCall)
                      $ weather_id
                      $ case weatherList of
@@ -135,31 +154,37 @@ decodeFileStrictIfExists path = do
         then decodeFileStrict path
         else return Nothing
 
-cacheOneCall :: (ToJSON a) => a -> IO ()
-cacheOneCall onecall = do
-    cachePath <- getCachePath
+cacheJSON :: (ToJSON a) => FilePath -> a -> IO ()
+cacheJSON filename obj = do
+    cachePath <- getXdgDirectory XdgCache "whether"
     createDirectoryIfMissing True $ takeDirectory cachePath
-    encodeFile cachePath onecall
+    encodeFile (cachePath </> filename) obj
+
+getJSONCache :: (FromJSON a) => FilePath -> IO (Maybe a)
+getJSONCache filename = do
+    cachePath <- getXdgDirectory XdgCache "whether"
+    decodeFileStrictIfExists (cachePath </> filename)
 
 createConfig :: FilePath -> IO ()
 createConfig path = do
     hSetBuffering stdout NoBuffering
     putStrLn  $ "No config.json found, creating new config.json at" ++ path
-    putStr   "Please enter the name of your location: "
+    putStr      "Please enter the name of your location: "
     newLoc    <- getLine
-    putStr   "Please enter your API Key: "
+    putStr      "Please enter your API Key: "
     newApiKey <- getLine
-    newUnits  <- validateInput Celsius "Please choose a unit system"
+    newUnits  <- validateInput Celsius 
+                "Please choose a unit system"
     createDirectoryIfMissing True $ takeDirectory path
     encodeFile path $ newConfig (newApiKey, newLoc, newUnits)
 
 -- IO Helpers --
 
-getConfigPath :: IO FilePath
-getConfigPath = getXdgDirectory XdgConfig "whether/config.json"
-
-getCachePath :: IO FilePath
-getCachePath = getXdgDirectory XdgCache "whether/cache.json"
+getConfigLastMod :: IO POSIXTime
+getConfigLastMod = do
+    configPath <- getXdgDirectory XdgConfig "whether/config.json"
+    modT       <- modificationTime <$> getFileStatus configPath
+    return $ realToFrac modT
 
 validateInput :: forall a . (Show a, Read a) => a -> String -> IO String
 validateInput _default prompt = do
@@ -254,21 +279,9 @@ oneCallUnits u = case u of
    Farenheit -> "imperial"
 
 
-newConfig :: (String, String, String) -> ConfigRoot
+newConfig :: (String, String, String) -> Config
 newConfig (k, l, u) =
-    ConfigRoot { apiKey = pack k
-               , loc    = pack l
-               , units  = read u :: TemperatureUnit
-               }
-
-cacheIfValid :: Maybe OneCallRoot -> POSIXTime -> POSIXTime -> Maybe OneCallRoot
-cacheIfValid cache modT t = 
-    case cache of
-        Nothing -> Nothing
-        Just x  -> case isValid of 
-            False -> Nothing
-            True  -> Just x
-          where
-            isValid = modT <= C.dt (current x)
-                   && t    <= C.dt (current x) + 600
-
+    Config { apiKey = pack k
+           , loc    = pack l
+           , units  = read u :: TemperatureUnit
+           }
