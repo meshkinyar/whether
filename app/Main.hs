@@ -61,6 +61,7 @@ getOneCall cfg = do
     time0         <- getPOSIXTime
     lockT         <- getLockTime
 
+    -- Stop execution if last response could not be parsed
     when (time0 < realToFrac lockT + 300) $ error "Saving your API calls"
 
     cacheFile     <- getJSONCache "oneCall.json" :: IO (Maybe OneCallRoot)
@@ -81,20 +82,22 @@ getOneCall cfg = do
                          $ oneCallRequest (G.lat location, G.lon location)
                          $ units cfg
             case (eitherDecode oneCallResp :: Either String OneCallRoot) of
-                Left _    -> do lockTimer
+                Left _    -> do setLock
                                 error "something broke :("
                 Right x   -> cacheJSON "oneCall.json" x >> return x
 
+-- Check when the last created lock file was modified
 getLockTime :: IO POSIXTime
 getLockTime = do
     lockPath   <- getXdgDirectory XdgState "whether/lock"
     lockExists <- doesFileExist lockPath
-    if lockExists 
+    if lockExists
     then do
         t <- modificationTime <$> getFileStatus lockPath
         return $ realToFrac t
     else return 0
 
+-- Get the first matched location from the OWM geocoding API
 getLocation :: Config -> IO (MatchedLocation)
 getLocation cfg = do
     geocodeCache <- getJSONCache "geocode.json" :: IO (Maybe GeocodeRoot)
@@ -115,6 +118,7 @@ getLocation cfg = do
                 Just (g:_) -> cacheJSON "geocode.json" g >> return g
 
 
+-- Define the format to print to stdout
 formatOutput :: Config -> OneCallRoot -> IO ()
 formatOutput config oneCall = do
     let weatherIcon  = toWeatherCondition (current oneCall)
@@ -141,6 +145,7 @@ formatOutput config oneCall = do
     putStr " "
     putStr . show $ moonPhase
 
+-- Call an OWM API
 callAPI :: Text -> Request -> IO L.ByteString
 callAPI key requestName = do
     let r = addToRequestQueryString [("appid", Just $ encodeUtf8 key)] requestName
@@ -154,17 +159,22 @@ decodeFileStrictIfExists path = do
         then decodeFileStrict path
         else return Nothing
 
+-- Save an API response to a JSON cache file
+-- Uses standard POSIX directory for cache
 cacheJSON :: (ToJSON a) => FilePath -> a -> IO ()
 cacheJSON filename obj = do
     cachePath <- getXdgDirectory XdgCache "whether"
     createDirectoryIfMissing True $ takeDirectory cachePath
     encodeFile (cachePath </> filename) obj
 
+
+-- Get cached JSON from filename
 getJSONCache :: (FromJSON a) => FilePath -> IO (Maybe a)
 getJSONCache filename = do
     cachePath <- getXdgDirectory XdgCache "whether"
     decodeFileStrictIfExists (cachePath </> filename)
 
+-- CLI to create a config if it doesn't already exist
 createConfig :: FilePath -> IO ()
 createConfig path = do
     hSetBuffering stdout NoBuffering
@@ -180,12 +190,14 @@ createConfig path = do
 
 -- IO Helpers --
 
+-- Check when the config file was last modified
 getConfigLastMod :: IO POSIXTime
 getConfigLastMod = do
     configPath <- getXdgDirectory XdgConfig "whether/config.json"
     modT       <- modificationTime <$> getFileStatus configPath
     return $ realToFrac modT
 
+-- Validate that the input can be represented as the same type as _default
 validateInput :: forall a . (Show a, Read a) => a -> String -> IO String
 validateInput _default prompt = do
     putStr $ printf "%s [default: %s]: " prompt $ show _default
@@ -196,8 +208,9 @@ validateInput _default prompt = do
             Nothing -> validateInput _default "Invalid input. Choose one of"
             Just _  -> return input
 
-lockTimer :: IO ()
-lockTimer = do 
+-- Create an empty lock file
+setLock :: IO ()
+setLock = do 
     lockPath <- getXdgDirectory XdgState "whether"
     createDirectoryIfMissing True lockPath
     writeFile ( lockPath <> "lock" ) ""
@@ -205,6 +218,7 @@ lockTimer = do
 -- Pure Functions --
 
 ---- Conversions
+-- Convert the OWM moon_phase float to a defined MoonPhase type
 toMoonPhase :: Double -> MoonPhase
 toMoonPhase x | x `elem` [0, 1]          = NewMoon
               | (x > 0   ) && (x < 0.25) = WaxingCrescent
@@ -216,6 +230,7 @@ toMoonPhase x | x `elem` [0, 1]          = NewMoon
               | (x > 0.75) && (x < 1.00) = WaningCrescent
               | otherwise                = error "Invalid value for Moon Phase"
 
+-- Convert the OWM weather condition code to a defined type
 toWeatherCondition :: Current -> Integer -> WeatherCondition
 toWeatherCondition c x |  inRange  (200, 299) x  = Thunderstorm
                        |  inRange  (300, 399) x
@@ -235,13 +250,14 @@ toWeatherCondition c x |  inRange  (200, 299) x  = Thunderstorm
                        |  x == 804               = Cloudy
                        |  otherwise              = error "Weather Condition id is out of range"
 
+-- Format input values for use in a OneCall API call
 formatCoord :: Double -> ByteString
 formatCoord x = encodeUtf8 $ pack $ show x
 
 formatUnits :: TemperatureUnit -> ByteString
 formatUnits x = encodeUtf8 $ pack $ oneCallUnits x
 
----- Simple HTTP Request
+---- Simple HTTP Requests
 owmRequest :: Request
 owmRequest =
     setRequestMethod "GET"
@@ -267,18 +283,20 @@ oneCallRequest (inputLat, inputLon) unit =
                           ]
     owmRequest
 
----- Miscellaneous Helpers
+---- Miscellaneous Helpers ----
 
+-- Check whether the time of day is between sunrise and sunset
 isDay :: Current -> Bool
 isDay c = C.dt c >= C.sunrise c && C.dt c <= C.sunset c
 
+-- Convert between TemperatureUnit and OneCall unit string
 oneCallUnits :: TemperatureUnit -> String
 oneCallUnits u = case u of
    Kelvin    -> "standard"
    Celsius   -> "metric"
    Farenheit -> "imperial"
 
-
+-- Config constructor function
 newConfig :: (String, String, String) -> Config
 newConfig (k, l, u) =
     Config { apiKey = pack k

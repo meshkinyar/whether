@@ -3,7 +3,7 @@ module Box where
 import Types
 import Data.List
 import Data.Time.Format
-import Data.Time.Clock.POSIX ( POSIXTime )
+import Data.Time.Clock.POSIX ( POSIXTime, posixSecondsToUTCTime )
 
 data DayStyle = DayAbbr | DateDash
 
@@ -16,17 +16,20 @@ data SimpleForecast = SimpleForecast
 
 wrapBorder :: [String] -> [String]
 wrapBorder [] = []
+wrapBorder [x] = [x]
 wrapBorder ([]:xs) = wrapBorder xs
-wrapBorder x@(x'@(x'':_):_) = intersperse boxD x
-  where
-    boxD = case (x'', last x') of
-        ('─','─') -> "┼"
-        ('─', _ ) -> "┤"
-        ( _, '─') -> "├"
-        ( _,  _ ) -> "│"
+wrapBorder (x:[]:xs) = wrapBorder (x:xs)
+wrapBorder ( x':y'@(y'':_):x's ) =
+    x' : boxD : y' : wrapBorder x's
+      where
+        boxD = case (y'', last x') of
+            ('─','─') -> "┼"
+            ('─', _ ) -> "┤"
+            ( _, '─') -> "├"
+            ( _,  _ ) -> "│"
 
-dateStr :: FormatTime t => DayStyle -> t -> String
-dateStr s date = formatTime defaultTimeLocale fstr date
+dateStr :: DayStyle -> POSIXTime -> String
+dateStr s date = formatTime defaultTimeLocale fstr $ posixSecondsToUTCTime date
   where 
     fstr = case s of
       DayAbbr  -> " %a "
@@ -34,7 +37,9 @@ dateStr s date = formatTime defaultTimeLocale fstr date
 
 
 horizontalLine :: Int -> Int -> String -> String
-horizontalLine w n x = intercalate x $ take (w * n) $ repeat "─"
+horizontalLine w n x = intercalate x $ take n $ repeat $ line
+  where
+    line = take w $ repeat '─'
 -- to3DayMatrix :: [Daily] -> [SimpleForecast]
 
 miniForecast :: [SimpleForecast] -> String
@@ -42,18 +47,20 @@ miniForecast days =
     unlines $
         map concat
             [
-              ["╭"   , hLine "┬"     ,    "╮"]
-            , ["│"   , threeCharDay  ,    "│"]
-            , ["├"   , hLine "┼"     ,    "┤"]
-            , ["│   ", display 1 cond, "   │"]
-            , ["│ ↑ ", display 5 high,   " │"]  
-            , ["│ ↓ ", display 5 low ,   " │"]  
-            , ["╰"   , hLine "┴"     ,    "╯"]
+              ["╭"   , hLine "┬"     ,   "╮"]
+            , ["│"   , threeCharDay  ,   "│"]
+            , ["├"   , hLine "┼"     ,   "┤"]
+            , ["│   ", display 2 cond, "  │"]
+            , ["│ ↑ ", display 6 high,   "│"]  
+            , ["│ ↓ ", display 6 low ,   "│"]  
+            , ["╰"   , hLine "┴"     ,   "╯"]
             ] 
     where 
-      hLine = horizontalLine 8 3
-      threeCharDay = concat $ wrapBorder [concat ["   ", dateStr DayAbbr (time d), "   "] | d <- days]
-      display w f     = concat $ wrapBorder $ map (padR w . show . f) days
+      hLine        = horizontalLine 9 (length days)
+      threeCharDay = concat $ wrapBorder [ concat ["  ", dateStr DayAbbr (time d), "  "]
+                                         | d <- days
+                                         ]
+      display w f  = concat $ wrapBorder $ map (padR w . show . f) days
         where
           padR j x = x ++ (take (j - length x) $ repeat ' ')
 
