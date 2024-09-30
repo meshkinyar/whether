@@ -6,9 +6,9 @@
 module Types where
 
 import Data.Aeson
-import Data.Time.Clock.POSIX               ( POSIXTime )
-import GHC.Generics                        ( Generic )
-import Data.Text                           ( Text )
+import Data.Time.Clock.POSIX ( POSIXTime )
+import GHC.Generics          ( Generic )
+import Data.Text             ( Text )
 
 
 data TemperatureUnit = Kelvin | Celsius | Farenheit
@@ -38,7 +38,7 @@ data WeatherCondition = ClearDay | ClearNight
                       | Rain     | RainPartial  | Thunderstorm | Tornado
                       | Fog      | Mist         | Haze         | Smoke 
                       | Snow     | Sleet
-    deriving Generic
+    deriving (Generic, Eq)
 
 instance FromJSON WeatherCondition
 
@@ -77,7 +77,7 @@ data Config = Config
     { apiKey :: Text
     , loc    :: Text
     , units  :: TemperatureUnit
-    } 
+    }
     deriving Generic
 instance FromJSON Config
 instance ToJSON Config
@@ -236,7 +236,6 @@ instance FromJSON Weather where
     parseJSON = genericParseJSON $ defaultOptions { fieldLabelModifier = _weather }
 instance ToJSON Weather where
     toJSON = genericToJSON defaultOptions { fieldLabelModifier = _weather }
-
 
 -- Label Functions
 

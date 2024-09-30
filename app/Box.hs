@@ -1,6 +1,8 @@
 module Box where
 
 import Types
+import Conversions
+import qualified Types as Day (Daily(dt, weather, d_temp), DailyTemp(max, min))
 import Data.List
 import Data.Time.Format
 import Data.Time.Clock.POSIX ( POSIXTime, posixSecondsToUTCTime )
@@ -14,19 +16,28 @@ data SimpleForecast = SimpleForecast
     , low  :: Temperature
     }
 
-wrapBorder :: [String] -> [String]
-wrapBorder [] = []
-wrapBorder [x] = [x]
-wrapBorder ([]:xs) = wrapBorder xs
-wrapBorder (x:[]:xs) = wrapBorder (x:xs)
-wrapBorder ( x':y'@(y'':_):x's ) =
-    x' : boxD : y' : wrapBorder x's
+getSimpleForecast :: Int -> Config -> OneCallRoot -> [SimpleForecast]
+getSimpleForecast nDays config oneCall =
+    map newSF days
       where
-        boxD = case (y'', last x') of
-            ('─','─') -> "┼"
-            ('─', _ ) -> "┤"
-            ( _, '─') -> "├"
-            ( _,  _ ) -> "│"
+        days    = take nDays $ daily oneCall
+        newSF d = SimpleForecast { time = Day.dt d
+                                 , cond = condition $ Day.weather d
+                                 , high = temp' Day.max
+                                 , low  = temp' Day.min
+                                 }
+          where
+            condition (x:_) = toWeatherCondition True $ weather_id x
+            condition [] = error "Could not get weather condition for at least one day"
+            temp' f   = T (f $ Day.d_temp d) $ units config 
+
+concatWrap :: [String] -> String
+concatWrap str =
+    concat $ wrapLine str
+      where
+        wrapLine []     = []
+        wrapLine [x]    = [x]
+        wrapLine (x:xs) = x : "│" : wrapLine xs
 
 dateStr :: DayStyle -> POSIXTime -> String
 dateStr s date = formatTime defaultTimeLocale fstr $ posixSecondsToUTCTime date
@@ -47,26 +58,43 @@ miniForecast days =
     unlines $
         map concat
             [
-              ["╭"   , hLine "┬"     ,   "╮"]
-            , ["│"   , threeCharDay  ,   "│"]
-            , ["├"   , hLine "┼"     ,   "┤"]
-            , ["│   ", display 2 cond, "  │"]
-            , ["│ ↑ ", display 6 high,   "│"]  
-            , ["│ ↓ ", display 6 low ,   "│"]  
-            , ["╰"   , hLine "┴"     ,   "╯"]
+              ["╭", hLine "┬"     , "╮"]
+            , ["│", threeCharDay  , "│"]
+            , ["├", hLine "┼"     , "┤"]
+            , ["│", condF         , "│"]
+            , ["│", tempF '↑' high, "│"]  
+            , ["│", tempF '↓' low , "│"]  
+            , ["╰", hLine "┴"     , "╯"]
             ] 
     where 
       hLine        = horizontalLine 9 (length days)
-      threeCharDay = concat $ wrapBorder [ concat ["  ", dateStr DayAbbr (time d), "  "]
+      threeCharDay = concatWrap [ concat ["  ", dateStr DayAbbr (time d), "  "]
                                          | d <- days
                                          ]
-      display w f  = concat $ wrapBorder $ map (padR w . show . f) days
+      condF = concatWrap
+            $ map pad days
         where
-          padR j x = x ++ (take (j - length x) $ repeat ' ')
-
---          f (x:xs) = show " ↑ "
-
-
-      -- <space><space><space><cond><space><space><
-      -- <space><uparr><space><temp><degre><degree>
-      -- <space>---------------------------
+          -- Emojis are not consistently displayed in a terminal
+          -- These manual adjustments are likely to change
+          pad d = concat $ "   " : show (cond d) : [take n $ repeat ' ']
+            where 
+              n | cond d `elem` [ Cloudy
+                                , ClearNight
+                                , Haze
+                                , Mist
+                                , Smoke
+                                ] = 4
+                | cond d `elem` [ Snow
+                                , ClearDay
+                                , Thunderstorm
+                                ] = 2
+                | otherwise       = 3
+      tempF symbol f  =
+          concatWrap
+        $ map showAdjust days
+          where
+            showAdjust = padR
+                       . (\x -> ' ' : symbol : ' ' : x)
+                       . show
+                       . f
+            padR x = x ++ (take (9 - length x) $ repeat ' ')
