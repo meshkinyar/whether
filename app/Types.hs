@@ -67,14 +67,14 @@ instance Show WeatherCondition where
         Haze         -> "Haze"
         Smoke        -> "Smoke"
 
-data Temperature = T Double UnitSystem
+data Temperature = T UnitSystem Double
     deriving Generic
 
 data Wind = Wind Double UnitSystem CardinalDirection
     deriving Generic
 
 instance Show Temperature where
-    show (T t u) = show (round t :: Integer) ++ unit where
+    show (T u t) = show (round t :: Integer) ++ unit where
         unit = case u of
             Standard -> "K"
             Metric   -> "°C"
@@ -239,6 +239,27 @@ instance FromJSON Weather where
     parseJSON = genericParseJSON $ defaultOptions { fieldLabelModifier = _weather }
 instance ToJSON Weather where
     toJSON = genericToJSON defaultOptions { fieldLabelModifier = _weather }
+
+-- Encoding
+
+data DailyForecast = DailyForecast
+    { time  :: POSIXTime
+    , cond  :: Maybe WeatherCondition
+    , high  :: Temperature
+    , low   :: Temperature
+    , rH    :: Integer
+    , wind  :: Maybe Wind
+    , uvi   :: Double
+    , rain  :: Maybe Precipitation
+    , snow  :: Maybe Precipitation
+    }
+
+data CurrentWeather = CurrentWeather
+    { cond :: Maybe WeatherCondition
+    , temp :: Temperature
+    , rH   :: Integer
+    , moon :: Maybe MoonPhase
+    }
 
 -- Label Functions
 

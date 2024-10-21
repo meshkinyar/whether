@@ -22,14 +22,13 @@ import System.IO
 import Types
 import Conversions
 import Display
-import qualified Data.Text.IO as T         ( putStr, putStrLn )
+import qualified Data.Text.IO as T         ( putStr )
 import qualified Data.ByteString.Lazy as L ( ByteString )
 
 -- Duplicate Field handling --
 -- import qualified Types as R                ( OneCallRoot(lat, lon) )
 import qualified Types as G                ( MatchedLocation(lat, lon) )
-import qualified Types as C                ( Current(dt, temp, humidity, weather)
-                                           )
+import qualified Types as C                ( Current(dt) )
 -- import qualified Types as C                ( Current(dt, sunrise, sunset, temp, feels_like, pressure
 --                                            , humidity, dew_point, uvi, clouds, visibility
 --                                            , wind_speed, wind_deg, wind_gust, weather)
@@ -47,8 +46,8 @@ main :: IO ()
 main = do
     config  <- getConfig 
     oneCall <- getOneCall config
-    T.putStrLn (miniForecast $ getDailyForecast config oneCall)
-    formatOutput config oneCall
+--    T.putStrLn (basicForecast 5 $ getDailyForecast config oneCall)
+    T.putStr   (tmuxStatus $ getCurrentWeather config oneCall)
 
 getConfig :: IO Config
 getConfig = do
@@ -123,33 +122,6 @@ getLocation cfg = do
 
 
 -- Define the format to print to stdout
-formatOutput :: Config -> OneCallRoot -> IO ()
-formatOutput config oneCall = do
-    T.putStr $ sformat fStr wIcon temperature humid moonPhase
-      where
-        fStr        = stext % " " % string % " 💧 " % string % "% " % string
-        weatherCond = 
-            toWeatherCondition (isDayCurrent $ current oneCall)
-          $ weather_id
-          $ case (C.weather $ current oneCall) of
-                []    -> error "Empty response"
-                (x:_) -> x
-        wIcon        = 
-            case weatherCond of
-                Nothing -> "  "
-                Just x  -> toWeatherSymbol x
-        temperature = show $ T (C.temp $ current oneCall) $ unitSystem config
-        humid       = show $ C.humidity $ current oneCall
-        moonPhase   = 
-            show $ case (phaseMaybe) of
-                Just x  -> x
-                Nothing -> error "ope"
-          where
-            phaseMaybe = toMoonPhase $ moon_phase $
-                case (daily oneCall) of
-                    []    -> error "Empty response"
-                    (x:_) -> x
-
 -- Call an OWM API
 callAPI :: Text -> Request -> IO L.ByteString
 callAPI key requestName = do
@@ -189,7 +161,7 @@ createConfig path = do
     putStr      "Please enter your API Key: "
     newApiKey <- getLine
     newUnits <- validateInput Metric
-                "Please choose a temperature unit system"
+                "Please choose a unit system"
     createDirectoryIfMissing True $ takeDirectory path
     encodeFile path $ newConfig (newApiKey, newLoc, newUnits)
 
