@@ -1,7 +1,7 @@
-{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE OverloadedStrings     #-}
 
 module Main where
 
@@ -12,7 +12,7 @@ import Data.Time.Clock.POSIX
 import Data.Text                           ( Text, pack )
 import Data.Text.Encoding                  ( encodeUtf8 )
 import Text.Read                           ( readMaybe )
-import Text.Printf                         ( printf )
+import Formatting
 import Text.Casing                         ( pascal )
 import System.Posix.Files                  ( getFileStatus, modificationTime )
 import System.Directory                    ( XdgDirectory( XdgConfig, XdgCache, XdgState ), getXdgDirectory, createDirectoryIfMissing, doesFileExist )
@@ -21,31 +21,34 @@ import System.IO
 
 import Types
 import Conversions
-import Box
+import Display
+import qualified Data.Text.IO as T         ( putStr, putStrLn )
 import qualified Data.ByteString.Lazy as L ( ByteString )
 
--- Duplicate Fields --
+-- Duplicate Field handling --
+-- import qualified Types as R                ( OneCallRoot(lat, lon) )
 import qualified Types as G                ( MatchedLocation(lat, lon) )
-import qualified Types as R                ( OneCallRoot(lat, lon) )
-import qualified Types as C                ( Current(dt, sunrise, sunset, temp, feels_like, pressure
-                                           , humidity, dew_point, uvi, clouds, visibility
-                                           , wind_speed, wind_deg, wind_gust, weather)
+import qualified Types as C                ( Current(dt, temp, humidity, weather)
                                            )
-import qualified Types as M                ( Minutely(dt) )
-import qualified Types as H                ( Hourly(dt, temp, feels_like, pressure, humidity, dew_point
-                                           , uvi, clouds, visibility, wind_speed, wind_gust, weather, pop)
-                                           )  
-import qualified Types as D                ( Daily(dt, sunrise, sunset, pressure, dew_point, humidity
-                                           , wind_speed, wind_deg, wind_gust, weather, clouds, pop, uvi)
-                                           )
+-- import qualified Types as C                ( Current(dt, sunrise, sunset, temp, feels_like, pressure
+--                                            , humidity, dew_point, uvi, clouds, visibility
+--                                            , wind_speed, wind_deg, wind_gust, weather)
+--                                            )
+-- import qualified Types as M                ( Minutely(dt) )
+-- import qualified Types as H                ( Hourly(dt, temp, feels_like, pressure, humidity, dew_point
+--                                            , uvi, clouds, visibility, wind_speed, wind_gust, weather, pop)
+--                                            )  
+-- import qualified Types as D                ( Daily(dt, sunrise, sunset, pressure, dew_point, humidity
+--                                            , wind_speed, wind_deg, wind_gust, weather, clouds, pop, uvi)
+--                                            )
 
 
 main :: IO ()
 main = do
     config  <- getConfig 
     oneCall <- getOneCall config
-    putStrLn (miniForecast $ getSimpleForecast 7 config oneCall)
---  formatOutput config oneCall
+    T.putStrLn (miniForecast $ getDailyForecast config oneCall)
+    formatOutput config oneCall
 
 getConfig :: IO Config
 getConfig = do
@@ -81,7 +84,7 @@ getOneCall cfg = do
             location    <- getLocation cfg
             oneCallResp <- callAPI (apiKey cfg)
                          $ oneCallRequest (G.lat location, G.lon location)
-                         $ units cfg
+                         $ unitSystem cfg
             case (eitherDecode oneCallResp :: Either String OneCallRoot) of
                 Left _    -> do setLock
                                 error "something broke :("
@@ -122,29 +125,30 @@ getLocation cfg = do
 -- Define the format to print to stdout
 formatOutput :: Config -> OneCallRoot -> IO ()
 formatOutput config oneCall = do
-    let weatherIcon  = toWeatherCondition (isDayCurrent $ current oneCall)
-                     $ weather_id
-                     $ case weatherList of
-                           []    -> error "Empty response"
-                           (x:_) -> x
-                       where weatherList = C.weather $ current oneCall
-    let temperature  = T (C.temp $ current oneCall) $ units config
-    let rH           = C.humidity $ current oneCall
-    let moonPhase    = toMoonPhase
-                     $ moon_phase
-                     $ case dayList of
-                           []    -> error "Empty response"
-                           (x:_) -> x
-                       where dayList = daily oneCall
-
-    putStr . show $ weatherIcon
-    putStr " "
-    putStr . show $ temperature
-    putStr " 💧 "
-    putStr . show $ rH
-    putStr "%"
-    putStr " "
-    putStr . show $ moonPhase
+    T.putStr $ sformat fStr wIcon temperature humid moonPhase
+      where
+        fStr        = stext % " " % string % " 💧 " % string % "% " % string
+        weatherCond = 
+            toWeatherCondition (isDayCurrent $ current oneCall)
+          $ weather_id
+          $ case (C.weather $ current oneCall) of
+                []    -> error "Empty response"
+                (x:_) -> x
+        wIcon        = 
+            case weatherCond of
+                Nothing -> "  "
+                Just x  -> toWeatherSymbol x
+        temperature = show $ T (C.temp $ current oneCall) $ unitSystem config
+        humid       = show $ C.humidity $ current oneCall
+        moonPhase   = 
+            show $ case (phaseMaybe) of
+                Just x  -> x
+                Nothing -> error "ope"
+          where
+            phaseMaybe = toMoonPhase $ moon_phase $
+                case (daily oneCall) of
+                    []    -> error "Empty response"
+                    (x:_) -> x
 
 -- Call an OWM API
 callAPI :: Text -> Request -> IO L.ByteString
@@ -184,8 +188,8 @@ createConfig path = do
     newLoc    <- getLine
     putStr      "Please enter your API Key: "
     newApiKey <- getLine
-    newUnits  <- validateInput Celsius 
-                "Please choose a unit system"
+    newUnits <- validateInput Metric
+                "Please choose a temperature unit system"
     createDirectoryIfMissing True $ takeDirectory path
     encodeFile path $ newConfig (newApiKey, newLoc, newUnits)
 
@@ -200,14 +204,16 @@ getConfigLastMod = do
 
 -- Validate that the input can be represented as the same type as _default
 validateInput :: forall a . (Show a, Read a) => a -> String -> IO String
-validateInput _default prompt = do
-    putStr $ printf "%s [default: %s]: " prompt $ show _default
+validateInput _default basePrompt = do
+    putStr $ formatToString promptF basePrompt (show _default)
     input <- getLine
     if input == ""
         then return $ show _default
         else case readMaybe (pascal input) :: Maybe a of
             Nothing -> validateInput _default "Invalid input. Choose one of"
             Just _  -> return input
+      where
+        promptF = string % "[default: " % string % "]: "
 
 -- Create an empty lock file to prevent exhaustion of API calls 
 setLock :: IO ()
@@ -235,12 +241,12 @@ geocodeRequest location =
                           ]
     owmRequest
 
-oneCallRequest :: Coordinates -> TemperatureUnit -> Request
+oneCallRequest :: Coordinates -> UnitSystem -> Request
 oneCallRequest (inputLat, inputLon) unit = 
     setRequestPath "/data/3.0/onecall"
   $ setRequestQueryString [ ("lat"  , Just $ formatCoord inputLat)
                           , ("lon"  , Just $ formatCoord inputLon)
-                          , ("units", Just $ formatUnits unit)
+                          , ("units", Just $ formatTUnits unit)
                           ]
     owmRequest
 
@@ -249,7 +255,7 @@ oneCallRequest (inputLat, inputLon) unit =
 -- Config constructor function
 newConfig :: (String, String, String) -> Config
 newConfig (k, l, u) =
-    Config { apiKey = pack k
-           , loc    = pack l
-           , units  = read u :: TemperatureUnit
+    Config { apiKey     = pack k
+           , loc        = pack l
+           , unitSystem = read u :: UnitSystem
            }

@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE PatternSynonyms       #-}
 
 module Types where
 
@@ -10,12 +11,18 @@ import Data.Time.Clock.POSIX ( POSIXTime )
 import GHC.Generics          ( Generic )
 import Data.Text             ( Text )
 
+data CardinalDirection = NorthWest | North | NorthEast
+                       | West              | East
+                       | SouthWest | South | SouthEast
 
-data TemperatureUnit = Kelvin | Celsius | Farenheit
+-- Note: OWM only specifies precipitation in millimeters
+
+data UnitSystem = Standard | Metric | Imperial
     deriving (Generic, Read, Show)
+instance FromJSON UnitSystem
+instance ToJSON UnitSystem
 
-instance FromJSON TemperatureUnit
-instance ToJSON TemperatureUnit
+data Precipitation = Inch Double | Millimetre Double
 
 data MoonPhase = NewMoon  | WaxingCrescent | FirstQuarter | WaxingGibbous
                | FullMoon | WaningGibbous  | LastQuarter  | WaningCrescent
@@ -44,41 +51,45 @@ instance FromJSON WeatherCondition
 
 instance Show WeatherCondition where
     show condition = case condition of
-        ClearDay     -> "☀️ "
-        ClearNight   -> "✨"
-        Cloudy       -> "☁ "
-        PartlyCloudy -> "🌤️"
-        MostlyCloudy -> "🌥️"
-        Rain         -> "🌧️"
-        RainPartial  -> "🌦️"
-        Thunderstorm -> "⛈️ "
-        Tornado      -> "🌪️"
-        Snow         -> "❄️ "
-        Sleet        -> "🌨️"
-        Fog          -> "🌫️"
-        Mist         -> "🌁"
-        Haze         -> "🌁"
-        Smoke        -> "🔥"
+        ClearDay     -> "Clear"
+        ClearNight   -> "Clear"
+        Cloudy       -> "Cloudy"
+        PartlyCloudy -> "Partly Cloudy"
+        MostlyCloudy -> "Mostly Cloudy"
+        Rain         -> "Rain"
+        RainPartial  -> "Partial Rain"
+        Thunderstorm -> "Thunderstorm"
+        Tornado      -> "Tornado"
+        Snow         -> "Snow"
+        Sleet        -> "Sleet"
+        Fog          -> "Fog"
+        Mist         -> "Mist"
+        Haze         -> "Haze"
+        Smoke        -> "Smoke"
 
-data Temperature = T Double TemperatureUnit
+data Temperature = T Double UnitSystem
+    deriving Generic
+
+data Wind = Wind Double UnitSystem CardinalDirection
     deriving Generic
 
 instance Show Temperature where
     show (T t u) = show (round t :: Integer) ++ unit where
         unit = case u of
-            Kelvin    -> "K"
-            Celsius   -> "°C"
-            Farenheit -> "°F"
+            Standard -> "K"
+            Metric   -> "°C"
+            Imperial -> "°F"
 
 type Coordinates = (Double, Double)
 
 -- Wrapper for config file metadata
 data Config = Config
-    { apiKey :: Text
-    , loc    :: Text
-    , units  :: TemperatureUnit
+    { apiKey     :: Text
+    , loc        :: Text
+    , unitSystem :: UnitSystem
     }
     deriving Generic
+
 instance FromJSON Config
 instance ToJSON Config
 
@@ -124,8 +135,8 @@ data Current = Current
     , wind_deg   :: Integer
     , wind_gust  :: Maybe Double
     , weather    :: [Weather]
-    , rain       :: Maybe Precipitation
-    , snow       :: Maybe Precipitation
+    , rain       :: Maybe Double
+    , snow       :: Maybe Double
     }
     deriving Generic
 instance FromJSON Current
@@ -150,7 +161,7 @@ data Hourly = Hourly
     , pressure   :: Integer
     , humidity   :: Integer
     , dew_point  :: Double
-    , uvi        :: Float
+    , uvi        :: Double
     , clouds     :: Integer
     , visibility :: Maybe Integer
     , wind_speed :: Double
@@ -158,8 +169,8 @@ data Hourly = Hourly
     , wind_gust  :: Maybe Double
     , weather    :: [Weather]
     , pop        :: Double
-    , rain       :: Maybe Precipitation
-    , snow       :: Maybe Precipitation
+    , rain       :: Maybe Double
+    , snow       :: Maybe Double
     }
     deriving Generic
 instance FromJSON Hourly
@@ -193,14 +204,6 @@ instance FromJSON Daily where
     parseJSON = genericParseJSON $ defaultOptions { fieldLabelModifier = _daily }
 instance ToJSON Daily where
     toJSON = genericToJSON $ defaultOptions { fieldLabelModifier = _daily }
-
-newtype Precipitation = Precipitation
-    { oneH :: Double }
-    deriving Generic
-instance FromJSON Precipitation where
-    parseJSON = genericParseJSON $ defaultOptions { fieldLabelModifier = _precipitation }
-instance ToJSON Precipitation where
-    toJSON = genericToJSON $ defaultOptions { fieldLabelModifier = _precipitation }
 
 data DailyTemp = DailyTemp
     { day   :: Double

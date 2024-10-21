@@ -65,7 +65,7 @@ executable whether
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules: Types, Box, Conversions
+    other-modules: Types, Display, Conversions
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -86,6 +86,7 @@ executable whether
         , casing
         , char-boxdrawing
         , unix
+        , formatting
 
     -- Directories containing source files.
     hs-source-dirs:   app
