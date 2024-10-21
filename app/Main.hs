@@ -22,7 +22,7 @@ import System.IO
 import Types
 import Conversions
 import Display
-import qualified Data.Text.IO as T         ( putStr )
+import qualified Data.Text.IO as T         ( putStr, putStrLn )
 import qualified Data.ByteString.Lazy as L ( ByteString )
 
 -- Duplicate Field handling --
@@ -46,7 +46,7 @@ main :: IO ()
 main = do
     config  <- getConfig 
     oneCall <- getOneCall config
---    T.putStrLn (basicForecast 5 $ getDailyForecast config oneCall)
+    T.putStrLn (basicForecast 5 $ getDailyForecast config oneCall)
     T.putStr   (tmuxStatus $ getCurrentWeather config oneCall)
 
 getConfig :: IO Config

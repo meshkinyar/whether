@@ -28,9 +28,9 @@ data Row a = Row a a a
 --     , low   :: Temperature
 --     }
 
-getWeatherCondition :: [Weather] -> Maybe WeatherCondition
-getWeatherCondition(x:_) = toWeatherCondition True $ weather_id x
-getWeatherCondition [] = Nothing 
+getWeatherCondition :: Bool -> [Weather] -> Maybe WeatherCondition
+getWeatherCondition y (x:_) = toWeatherCondition y $ weather_id x
+getWeatherCondition _ [] = Nothing 
 
 getDailyForecast :: Config -> OneCallRoot -> [DailyForecast]
 getDailyForecast config oneCall =
@@ -38,7 +38,7 @@ getDailyForecast config oneCall =
       where
         newDF d = DailyForecast
           { time  = D.dt d
-          , cond  = getWeatherCondition $ D.weather d
+          , cond  = getWeatherCondition True $ D.weather d
           , high  = temps D.max
           , low   = temps D.min
           , rH    = D.humidity d
@@ -61,13 +61,15 @@ getDailyForecast config oneCall =
 
 getCurrentWeather :: Config -> OneCallRoot -> CurrentWeather
 getCurrentWeather config oneCall = CurrentWeather
-    { cond    = getWeatherCondition $ C.weather $ current oneCall
+    { cond    = getWeatherCondition isDay $ C.weather $ current oneCall
     , temp    = T (unitSystem config) (C.temp $ current oneCall)
     , rH      = C.humidity $ current oneCall
     , moon    = case (daily $ oneCall) of
                     x:_ -> toMoonPhase $ moon_phase $ x
                     []  -> Nothing
     }
+      where
+        isDay = isDayCurrent $ current oneCall 
 
 concatWrap :: [T.Text] -> T.Text
 concatWrap t =
@@ -95,11 +97,26 @@ horizontalLine w n x = T.pack $ intercalate x $ take n $ repeat $ line
 
 tmuxStatus :: CurrentWeather -> T.Text
 tmuxStatus cw = 
-    sformat fStr (g toWeatherSymbol CW.cond) (f CW.temp) (f CW.rH) (g show CW.moon)
+    sformat fStr (g (padE . toWeatherSymbol) CW.cond) (f CW.temp) (f CW.rH) (g show CW.moon)
       where
-        fStr        = stext % string % " 💧 " % string % "% " % string
-        f x         = show $ x cw
-        g y0 y1     = maybe "  " y0 (y1 cw)
+        fStr     = stext % string % " 💧 " % string % "% " % string
+        f x      = show $ x cw
+        g y0 y1  = maybe "  " y0 (y1 cw)
+        padE z | z == padEmoji z = z
+               | otherwise       = z <> " "
+
+padEmoji :: T.Text -> T.Text
+padEmoji emoji = emoji <> (T.pack $ take w $ repeat ' ')
+  where
+    w | emoji `elem` [ "☁ "
+                     , "✨"
+                     , "🌁"
+                     ] = 2
+      | emoji `elem` [ "❄️ "
+                     , "☀️ "
+                     , "⛈️ "
+                     ] = 0
+      | otherwise      = 1
 
 
 basicForecast :: Int -> [DailyForecast] -> T.Text
@@ -125,21 +142,11 @@ basicForecast n df =
       condF = concatWrap $ map pad days
       -- Emojis are not consistently displayed in a terminal
       -- These manual adjustments are likely to change
-      pad d = sformat ("   " % stext % string)
-                      weatherSymbol (take w $ repeat ' ')
+      pad d = sformat ("   " % stext ) weatherSymbol 
         where
           weatherSymbol = case (DF.cond d) of 
-              Just x  -> toWeatherSymbol x
+              Just x  -> (padEmoji $ toWeatherSymbol x) <> "  "
               Nothing -> " "
-          w | weatherSymbol `elem` [ "☁ "
-                                   , "✨"
-                                   , "🌁"
-                                   ] = 4
-            | weatherSymbol `elem` [ "❄️ "
-                                   , "☀️ "
-                                   , "⛈️ "
-                                   ] = 2
-            | otherwise              = 3
       tempF symbol f  =
           concatWrap
         $ map showAdjust days
