@@ -111,9 +111,10 @@ data OneCallRoot = OneCallRoot
     , timezone        :: Text
     , timezone_offset :: Integer
     , current         :: Current
-    , minutely        :: [Minutely]
+    , minutely        :: Maybe [Minutely]
     , hourly          :: [Hourly]
     , daily           :: [Daily]
+    , alerts          :: Maybe [Alert]
     } 
     deriving Generic
 instance FromJSON OneCallRoot
@@ -135,8 +136,8 @@ data Current = Current
     , wind_deg   :: Integer
     , wind_gust  :: Maybe Double
     , weather    :: [Weather]
-    , rain       :: Maybe Double
-    , snow       :: Maybe Double
+    , rain       :: Maybe Precip1h
+    , snow       :: Maybe Precip1h
     }
     deriving Generic
 instance FromJSON Current
@@ -169,12 +170,21 @@ data Hourly = Hourly
     , wind_gust  :: Maybe Double
     , weather    :: [Weather]
     , pop        :: Double
-    , rain       :: Maybe Double
-    , snow       :: Maybe Double
+    , rain       :: Maybe Precip1h
+    , snow       :: Maybe Precip1h
     }
     deriving Generic
 instance FromJSON Hourly
 instance ToJSON Hourly
+
+data Precip1h = Precip1h
+    { oneH :: Double }
+    deriving Generic
+
+instance FromJSON Precip1h where
+    parseJSON = genericParseJSON $ defaultOptions { fieldLabelModifier = _precip1h }
+instance ToJSON Precip1h where
+    toJSON = genericToJSON $ defaultOptions { fieldLabelModifier = _precip1h }
 
 data Daily = Daily
     { dt            :: POSIXTime
@@ -240,6 +250,19 @@ instance FromJSON Weather where
 instance ToJSON Weather where
     toJSON = genericToJSON defaultOptions { fieldLabelModifier = _weather }
 
+data Alert = Alert
+    { sender_name :: Text
+    , event       :: Text
+    , start       :: POSIXTime
+    , end         :: POSIXTime
+    , description :: Text
+    , tags        :: [Text]
+    }
+    deriving Generic
+
+instance FromJSON Alert
+instance ToJSON Alert
+
 -- Encoding
 
 data DailyForecast = DailyForecast
@@ -248,6 +271,7 @@ data DailyForecast = DailyForecast
     , high  :: Temperature
     , low   :: Temperature
     , rH    :: Integer
+    , hPa   :: Integer
     , wind  :: Maybe Wind
     , uvi   :: Double
     , rain  :: Maybe Precipitation
@@ -260,6 +284,8 @@ data CurrentWeather = CurrentWeather
     , rH   :: Integer
     , moon :: Maybe MoonPhase
     }
+
+data PressureLevel = HighPressure | NormalPressure | LowPressure
 
 -- Label Functions
 
@@ -275,6 +301,6 @@ _weather "weather_id" = "id"
 _weather "weather_main" = "main"
 _weather s = s
 
-_precipitation :: String -> String
-_precipitation "oneH" = "1h"
-_precipitation x = x
+_precip1h :: String -> String
+_precip1h "oneH" = "1h"
+_precip1h x = x

@@ -11,7 +11,7 @@ import Data.List ( intercalate )
 import Data.Time.Format
 import Data.Time.Clock.POSIX ( POSIXTime, posixSecondsToUTCTime )
 import Formatting
-import qualified Types as D (Daily(dt, weather, d_temp, uvi, d_rain, d_snow, humidity, wind_speed, wind_deg), DailyTemp(max, min))
+import qualified Types as D (Daily(dt, pressure, weather, d_temp, uvi, d_rain, d_snow, humidity, wind_speed, wind_deg), DailyTemp(max, min))
 import qualified Types as C (Current(temp, humidity, weather))
 import qualified Types as CW (CurrentWeather(temp, cond, rH, moon))
 import qualified Types as DF (DailyForecast(cond))
@@ -20,13 +20,6 @@ import qualified Data.Text as T ( Text, pack, unpack, unlines )
 data DayStyle = DayAbbr | DateDash
 
 data Row a = Row a a a
-
--- data SimpleForecast = SimpleForecast
---     { timeS :: POSIXTime
---     , cond  :: WeatherCondition
---     , high  :: Temperature
---     , low   :: Temperature
---     }
 
 getWeatherCondition :: Bool -> [Weather] -> Maybe WeatherCondition
 getWeatherCondition y (x:_) = toWeatherCondition y $ weather_id x
@@ -42,6 +35,7 @@ getDailyForecast config oneCall =
           , high  = temps D.max
           , low   = temps D.min
           , rH    = D.humidity d
+          , hPa   = D.pressure d
           , wind  = windF $ D.wind_deg d
           , uvi   = D.uvi d
           , rain  = precip D.d_rain
@@ -95,11 +89,14 @@ horizontalLine w n x = T.pack $ intercalate x $ take n $ repeat $ line
 
 -- Formatters
 
-tmuxStatus :: CurrentWeather -> T.Text
-tmuxStatus cw = 
-    sformat fStr (g (padE . toWeatherSymbol) CW.cond) (f CW.temp) (f CW.rH) (g show CW.moon)
+statusString :: CurrentWeather -> T.Text
+statusString cw = 
+    sformat fStr (g (padE . toWeatherSymbol) CW.cond)
+                 (f CW.temp)
+                 (f CW.rH)
+                 (g show CW.moon)
       where
-        fStr     = stext % string % " 💧 " % string % "% " % string
+        fStr     = stext % string % " 🌢  " % string % "% " % string
         f x      = show $ x cw
         g y0 y1  = maybe "  " y0 (y1 cw)
         padE z | z == padEmoji z = z
@@ -127,8 +124,8 @@ basicForecast n df =
         , Row "│" threeCharDay     "│"
         , Row "├" (hLine "┼")      "┤"
         , Row "│" condF            "│"
-        , Row "│" (tempF '↑' high) "│"  
-        , Row "│" (tempF '↓' low)  "│"  
+        , Row "│" (tempF '⏶' high) "│"  
+        , Row "│" (tempF '⏷' low)  "│"  
         , Row "╰" (hLine "┴")      "╯"
         ]
     where 

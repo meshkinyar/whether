@@ -22,7 +22,9 @@ import System.IO
 import Types
 import Conversions
 import Display
-import qualified Data.Text.IO as T         ( putStr, putStrLn )
+-- import Opts
+-- import Options.Applicative
+import qualified Data.Text.IO as T         ( putStr )
 import qualified Data.ByteString.Lazy as L ( ByteString )
 
 -- Duplicate Field handling --
@@ -44,11 +46,19 @@ import qualified Types as C                ( Current(dt) )
 
 main :: IO ()
 main = do
+--- opts <- execParser optsParser
+--- case (optCommand opts) of
+---     Now       o   -> "hi"
+---     Forecast  o   -> "hi"
+---     FormatStr str -> "hi"
+---     Calibrate     -> "hi"
     config  <- getConfig 
-    oneCall <- getOneCall config
-    T.putStrLn (basicForecast 5 $ getDailyForecast config oneCall)
-    T.putStr   (tmuxStatus $ getCurrentWeather config oneCall)
+    oneCall <- getOneCall True config
+--    T.putStrLn (basicForecast 5 $ getDailyForecast config oneCall)
+    T.putStr   (statusString $ getCurrentWeather config oneCall)
+  where
 
+-- Retrieve values from the whether config file
 getConfig :: IO Config
 getConfig = do
     configPath   <- getXdgDirectory XdgConfig "whether/config.json"
@@ -59,40 +69,40 @@ getConfig = do
         Nothing   -> error "Invalid config.json"
         Just cfg  -> return cfg 
 
-getOneCall :: Config -> IO OneCallRoot
-getOneCall cfg = do
+-- Retrieve from cache if valid or call the OWM OneCall API for a fresh JSON
+getOneCall :: Bool -> Config -> IO OneCallRoot
+getOneCall lockOnFail cfg = do
     time0         <- getPOSIXTime
-    lockT         <- getLockTime
+    lockPath      <- getXdgDirectory XdgState "whether/lock"
+    lockT         <- getLockTime lockPath
 
     -- Stop execution if last response could not be parsed
-    when (time0 < realToFrac lockT + 300) $ error "Saving your API calls"
+    -- Prevents API calls from being exhausted by bugs
+    when (lockOnFail && time0 < realToFrac lockT + 300) $
+        error $ formatToString ("New API calls locked due to failed parse, delete " % string % " to retry.") lockPath
 
     cacheFile     <- getJSONCache "oneCall.json" :: IO (Maybe OneCallRoot)
     lastMod       <- getConfigLastMod
-    let lastCache = case cacheFile of
-            Nothing -> Nothing
-            Just x  -> case isValid of 
-                False -> Nothing
-                True  -> Just x
-              where
-                isValid = lastMod <= C.dt (current x)
-                       && time0   <= C.dt (current x) + 600
-    case lastCache of
-        Just x  -> return x
-        Nothing -> do
-            location    <- getLocation cfg
-            oneCallResp <- callAPI (apiKey cfg)
-                         $ oneCallRequest (G.lat location, G.lon location)
-                         $ unitSystem cfg
-            case (eitherDecode oneCallResp :: Either String OneCallRoot) of
-                Left _    -> do setLock
-                                error "something broke :("
-                Right x   -> cacheJSON "oneCall.json" x >> return x
+    let isValid cache = lastMod <= C.dt (current cache)
+                     && time0   <= C.dt (current cache) + 600
+    case cacheFile of
+        Just x | isValid x -> return x
+               | otherwise -> getNew
+        Nothing            -> getNew
+        where
+          getNew = do
+              location    <- getLocation cfg
+              oneCallResp <- callAPI (apiKey cfg)
+                           $ oneCallRequest (G.lat location, G.lon location)
+                           $ unitSystem cfg
+              case (eitherDecode oneCallResp :: Either String OneCallRoot) of
+                  Left x  -> do setLock
+                                error x
+                  Right x -> cacheJSON "oneCall.json" x >> return x
 
 -- Check when the last created lock file was modified
-getLockTime :: IO POSIXTime
-getLockTime = do
-    lockPath   <- getXdgDirectory XdgState "whether/lock"
+getLockTime :: FilePath -> IO POSIXTime
+getLockTime lockPath = do
     lockExists <- doesFileExist lockPath
     if lockExists
     then do
@@ -121,20 +131,12 @@ getLocation cfg = do
                 Just (g:_) -> cacheJSON "geocode.json" g >> return g
 
 
--- Define the format to print to stdout
 -- Call an OWM API
 callAPI :: Text -> Request -> IO L.ByteString
 callAPI key requestName = do
     let r = addToRequestQueryString [("appid", Just $ encodeUtf8 key)] requestName
     response <- httpLBS r
     return ( getResponseBody response )
-
-decodeFileStrictIfExists :: (FromJSON a) => FilePath -> IO (Maybe a)
-decodeFileStrictIfExists path = do
-    exists <- doesFileExist path
-    if exists 
-        then decodeFileStrict path
-        else return Nothing
 
 -- Save an API response to a JSON cache file
 -- Uses standard POSIX directory for cache
@@ -144,12 +146,14 @@ cacheJSON filename obj = do
     createDirectoryIfMissing True $ takeDirectory cachePath
     encodeFile (cachePath </> filename) obj
 
-
 -- Get cached JSON from filename
 getJSONCache :: (FromJSON a) => FilePath -> IO (Maybe a)
 getJSONCache filename = do
     cachePath <- getXdgDirectory XdgCache "whether"
-    decodeFileStrictIfExists (cachePath </> filename)
+    exists    <- doesFileExist cachePath
+    if exists
+    then decodeFileStrict $ cachePath </> filename
+    else return Nothing
 
 -- CLI to create a config if it doesn't already exist
 createConfig :: FilePath -> IO ()
@@ -192,7 +196,7 @@ setLock :: IO ()
 setLock = do 
     lockPath <- getXdgDirectory XdgState "whether"
     createDirectoryIfMissing True lockPath
-    writeFile ( lockPath <> "lock" ) ""
+    writeFile ( lockPath </> "lock" ) ""
 
 -- Pure Functions --
 
