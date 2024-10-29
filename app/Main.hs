@@ -22,9 +22,9 @@ import System.IO
 import Types
 import Conversions
 import Display
--- import Opts
--- import Options.Applicative
-import qualified Data.Text.IO as T         ( putStr )
+import Options
+import Options.Applicative
+import qualified Data.Text.IO as T         ( putStr, putStrLn )
 import qualified Data.ByteString.Lazy as L ( ByteString )
 
 -- Duplicate Field handling --
@@ -46,17 +46,35 @@ import qualified Types as C                ( Current(dt) )
 
 main :: IO ()
 main = do
---- opts <- execParser optsParser
---- case (optCommand opts) of
----     Now       o   -> "hi"
----     Forecast  o   -> "hi"
----     FormatStr str -> "hi"
----     Calibrate     -> "hi"
-    config  <- getConfig 
+    config <- getConfig 
+    opts   <- execParser (info pOptions idm)
+    case (optCommand opts) of
+        Now       o -> cmdNow       config o
+        Forecast  o -> cmdForecast  config o
+        FormatStr o -> cmdFormatStr config o
+        Calibrate   -> cmdCalibrate
+
+-- Print information about the current weather
+cmdNow :: Config -> NowOptions -> IO ()
+cmdNow config _ = do
     oneCall <- getOneCall True config
---    T.putStrLn (basicForecast 5 $ getDailyForecast config oneCall)
-    T.putStr   (statusString $ getCurrentWeather config oneCall)
-  where
+    T.putStr (statusString $ getCurrentWeather config oneCall)
+
+-- Print a forecast
+cmdForecast :: Config -> ForecastOptions -> IO ()
+cmdForecast config opt = do
+    oneCall <- getOneCall True config
+    T.putStrLn (basicForecast (optDays opt) $ getDailyForecast config oneCall) 
+
+-- Print a custom formatted string
+cmdFormatStr :: Config -> FormatStrOptions -> IO ()
+cmdFormatStr config _ = do
+    _ <- getOneCall True config
+    T.putStrLn "WIP"
+
+-- Calibrate Emoji widths
+cmdCalibrate :: IO ()
+cmdCalibrate = putStrLn "WIP"
 
 -- Retrieve values from the whether config file
 getConfig :: IO Config

@@ -102,6 +102,8 @@ statusString cw =
         padE z | z == padEmoji z = z
                | otherwise       = z <> " "
 
+-- Emojis are not consistently displayed in a terminal
+-- These manual adjustments are likely to change
 padEmoji :: T.Text -> T.Text
 padEmoji emoji = emoji <> (T.pack $ take w $ repeat ' ')
   where
@@ -137,12 +139,10 @@ basicForecast n df =
                                 | d <- days
                                 ]
       condF = concatWrap $ map pad days
-      -- Emojis are not consistently displayed in a terminal
-      -- These manual adjustments are likely to change
       pad d = sformat ("   " % stext ) weatherSymbol 
         where
           weatherSymbol = case (DF.cond d) of 
-              Just x  -> (padEmoji $ toWeatherSymbol x) <> "  "
+              Just x  -> (padEmoji $ toWeatherSymbol x) <> "   "
               Nothing -> " "
       tempF symbol f  =
           concatWrap
