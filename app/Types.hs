@@ -7,13 +7,24 @@
 module Types where
 
 import Data.Aeson
-import Data.Time.Clock.POSIX ( POSIXTime )
-import GHC.Generics          ( Generic )
-import Data.Text             ( Text )
+import Data.Time.Clock.POSIX    ( POSIXTime )
+import GHC.Generics             ( Generic )
+import qualified Data.Text as T ( Text )
 
 data CardinalDirection = NorthWest | North | NorthEast
                        | West              | East
                        | SouthWest | South | SouthEast
+
+instance Show CardinalDirection where
+    show d = case d of
+        NorthWest -> "Northwest"
+        North     -> "North"
+        NorthEast -> "Northeast"
+        West      -> "West"
+        East      -> "East"
+        SouthWest -> "Southwest"
+        South     -> "South"
+        SouthEast -> "Southeast"
 
 -- Note: OWM only specifies precipitation in millimeters
 
@@ -28,17 +39,6 @@ data MoonPhase = NewMoon  | WaxingCrescent | FirstQuarter | WaxingGibbous
                | FullMoon | WaningGibbous  | LastQuarter  | WaningCrescent
     deriving Generic
 
-instance Show MoonPhase where
-    show phase = case phase of
-        NewMoon        -> "🌑"
-        WaxingCrescent -> "🌒"
-        FirstQuarter   -> "🌓"
-        WaxingGibbous  -> "🌔"
-        FullMoon       -> "🌕"
-        WaningGibbous  -> "🌖"
-        LastQuarter    -> "🌗"
-        WaningCrescent -> "🌘"
-
 -- Weather Conditions with Unicode Representations
 data WeatherCondition = ClearDay | ClearNight
                       | Cloudy   | MostlyCloudy | PartlyCloudy
@@ -48,6 +48,18 @@ data WeatherCondition = ClearDay | ClearNight
     deriving (Generic, Eq)
 
 instance FromJSON WeatherCondition
+
+instance Show MoonPhase where
+    show phase = case phase of
+        NewMoon        -> "New Moon"
+        WaxingCrescent -> "Waxing Crescent"
+        FirstQuarter   -> "First Quarter"
+        WaxingGibbous  -> "Waxing Gibbous"
+        FullMoon       -> "Full Moon"
+        WaningGibbous  -> "Waning Gibbous"
+        LastQuarter    -> "Third Quarter"
+        WaningCrescent -> "Waning Crescent"
+
 
 instance Show WeatherCondition where
     show condition = case condition of
@@ -70,7 +82,7 @@ instance Show WeatherCondition where
 data Temperature = T UnitSystem Double
     deriving Generic
 
-data Wind = Wind Double UnitSystem CardinalDirection
+data Wind = Wind UnitSystem CardinalDirection Double
     deriving Generic
 
 instance Show Temperature where
@@ -84,8 +96,8 @@ type Coordinates = (Double, Double)
 
 -- Wrapper for config file metadata
 data Config = Config
-    { apiKey     :: Text
-    , loc        :: Text
+    { apiKey     :: T.Text
+    , loc        :: T.Text
     , unitSystem :: UnitSystem
     }
     deriving Generic
@@ -96,10 +108,10 @@ instance ToJSON Config
 type GeocodeRoot = [MatchedLocation]
 
 data MatchedLocation = MatchedLocation
-    { name    :: Text
+    { name    :: T.Text
     , lat     :: Double
     , lon     :: Double
-    , country :: Text
+    , country :: T.Text
     } 
     deriving Generic
 instance FromJSON MatchedLocation
@@ -108,7 +120,7 @@ instance ToJSON MatchedLocation
 data OneCallRoot = OneCallRoot
     { lat             :: Double
     , lon             :: Double
-    , timezone        :: Text
+    , timezone        :: T.Text
     , timezone_offset :: Integer
     , current         :: Current
     , minutely        :: Maybe [Minutely]
@@ -193,7 +205,7 @@ data Daily = Daily
     , moonrise      :: POSIXTime
     , moonset       :: POSIXTime
     , moon_phase    :: Double
-    , summary       :: Text
+    , summary       :: T.Text
     , d_temp        :: DailyTemp
     , d_feels_like  :: DailyFeelsLike
     , pressure      :: Integer
@@ -239,9 +251,9 @@ instance ToJSON DailyFeelsLike
 
 data Weather = Weather
     { weather_id   :: Integer
-    , weather_main :: Text
-    , description  :: Text
-    , icon         :: Text
+    , weather_main :: T.Text
+    , description  :: T.Text
+    , icon         :: T.Text
     }
     deriving Generic
 
@@ -251,12 +263,12 @@ instance ToJSON Weather where
     toJSON = genericToJSON defaultOptions { fieldLabelModifier = _weather }
 
 data Alert = Alert
-    { sender_name :: Text
-    , event       :: Text
+    { sender_name :: T.Text
+    , event       :: T.Text
     , start       :: POSIXTime
     , end         :: POSIXTime
-    , description :: Text
-    , tags        :: [Text]
+    , description :: T.Text
+    , tags        :: [T.Text]
     }
     deriving Generic
 
@@ -268,8 +280,7 @@ instance ToJSON Alert
 data DailyForecast = DailyForecast
     { time  :: POSIXTime
     , cond  :: Maybe WeatherCondition
-    , high  :: Temperature
-    , low   :: Temperature
+    , temps :: (Temperature, Temperature)
     , rH    :: Integer
     , hPa   :: Integer
     , wind  :: Maybe Wind

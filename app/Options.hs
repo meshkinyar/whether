@@ -3,8 +3,9 @@
 module Options where
 
 import Options.Applicative
+import Data.Ix ( inRange )
 
-data ForecastStyle = Basic | Complex
+data ForecastStyle = Minimal | Complete
 
 data Command = Now NowOptions 
              | FormatStr FormatStrOptions
@@ -60,11 +61,18 @@ pNow = Now <$> ( NowOptions <$> pStyle )
 pForecast :: Parser Command
 pForecast = Forecast <$> ( ForecastOptions <$> pDays <*> pStyle )
 
+days :: ReadM Int
+days = do
+    n <- auto
+    case (inRange (1, 8) n) of
+        True  -> return n
+        False -> readerError "Days must be in the range 1-8"
+
 pDays :: Parser Int
-pDays = option auto
+pDays = option days
     (  long    "days"
     <> short   'd'
-    <> metavar "# OF DAYS"
+    <> metavar "# DAYS (1-8)"
     <> help    "Forecast N days"
     )
 ----
@@ -86,8 +94,8 @@ pCalibrate = pure Calibrate
 
 ---- Common ----
 pStyle :: Parser ForecastStyle
-pStyle = flag Basic Complex
-    (  long  "complex" 
+pStyle = flag Minimal Complete
+    (  long  "complete" 
     <> short 'c'
     <> help  "Print a detailed forecast"
     )

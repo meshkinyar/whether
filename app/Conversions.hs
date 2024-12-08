@@ -29,7 +29,7 @@ toWeatherCondition isDay x
     |  inRange  (200, 299) x  = Just Thunderstorm
     |  inRange  (300, 399) x
     || inRange  (502, 599) x  = Just Rain
-    |  inRange  (500, 502) x  = Just RainPartial
+    |  inRange  (500, 501) x  = Just RainPartial
     |  inRange  (600, 699) x  = Just Snow
     |  x == 701               = Just Mist
     |  x == 711               = Just Smoke
@@ -43,25 +43,6 @@ toWeatherCondition isDay x
     |  x `elem` [802, 803]    = Just MostlyCloudy
     |  x == 804               = Just Cloudy
     |  otherwise              = Nothing
-
-toWeatherSymbol :: WeatherCondition -> Text
-toWeatherSymbol condition =
-    case condition of
-        ClearDay     -> "☀️ "
-        ClearNight   -> "✨"
-        Cloudy       -> "☁ "
-        PartlyCloudy -> "🌤️"
-        MostlyCloudy -> "🌥️"
-        Rain         -> "🌧️"
-        RainPartial  -> "🌦️"
-        Thunderstorm -> "⛈️ "
-        Tornado      -> "🌪️"
-        Snow         -> "❄️ "
-        Sleet        -> "🌨️"
-        Fog          -> "🌫️"
-        Mist         -> "🌁"
-        Haze         -> "🌁"
-        Smoke        -> "🔥"
 
 toPressureSymbol :: PressureLevel -> Text
 toPressureSymbol pl = case pl of
@@ -108,9 +89,26 @@ toPrecipitation config p = case (unitSystem config) of
     Imperial -> Inch (p / 25.4) 
     _        -> Millimetre p
 
-
 toPressureLevel :: Integer -> PressureLevel
 toPressureLevel p
     | p > 1014  = HighPressure
     | p < 1012  = LowPressure
     | otherwise = NormalPressure
+
+toHeatIndex :: Temperature -> Integer -> Temperature
+toHeatIndex (T u baseTemp) rhPercent = T u finalHI
+  where
+    finalHI
+        | adjHI < 80 = 0.5 * (t + 61 + ((t - 68) * 1.2) + (rh * 0.094))
+        | otherwise  = adjHI
+    adjHI
+        | rh < 0.13 && t > 80 && t < 112 = hi + ((13 - rh) / 4) * sqrt ((17 - (abs 95)) / 17)
+        | rh > 0.85 && t > 80 && t < 87 = hi + ((rh - 85) / 10) * ((87 - t) / 5)
+        | otherwise = hi
+    hi = -42.379 + 2.04901523*t + 10.14333127*rh - 0.22475541*t*rh - 0.00683783*t*t - 0.05481717*rh*rh + 0.00122874*t*t*rh + 0.00085282*t*rh*rh - 0.00000199*t*t*rh*rh
+    rh = (fromIntegral rhPercent) * 0.01
+    t = case u of
+        Imperial -> t
+        Metric   -> 32 + baseTemp * 1.8
+        Standard -> 32 + (baseTemp - 273.15) * 1.8
+

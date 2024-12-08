@@ -90,17 +90,17 @@ getConfig = do
 -- Retrieve from cache if valid or call the OWM OneCall API for a fresh JSON
 getOneCall :: Bool -> Config -> IO OneCallRoot
 getOneCall lockOnFail cfg = do
-    time0         <- getPOSIXTime
-    lockPath      <- getXdgDirectory XdgState "whether/lock"
-    lockT         <- getLockTime lockPath
+    time0     <- getPOSIXTime
+    lockPath  <- getXdgDirectory XdgState "whether/lock"
+    lockT     <- getLockTime lockPath
 
     -- Stop execution if last response could not be parsed
     -- Prevents API calls from being exhausted by bugs
     when (lockOnFail && time0 < realToFrac lockT + 300) $
         error $ formatToString ("New API calls locked due to failed parse, delete " % string % " to retry.") lockPath
 
-    cacheFile     <- getJSONCache "oneCall.json" :: IO (Maybe OneCallRoot)
-    lastMod       <- getConfigLastMod
+    cacheFile <- getJSONCache "oneCall.json" :: IO (Maybe OneCallRoot)
+    lastMod   <- getConfigLastMod
     let isValid cache = lastMod <= C.dt (current cache)
                      && time0   <= C.dt (current cache) + 600
     case cacheFile of

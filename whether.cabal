@@ -77,7 +77,7 @@ executable whether
         , ix
         , bytestring
         , http-conduit
-        , text
+        , text ^>=2.1.2
         , scientific
         , binary
         , aeson
