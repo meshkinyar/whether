@@ -9,7 +9,7 @@ module Types where
 import Data.Aeson
 import Data.Time.Clock.POSIX    ( POSIXTime )
 import GHC.Generics             ( Generic )
-import qualified Data.Text as T ( Text )
+import qualified Data.Text as S ( Text )
 
 data CardinalDirection = NorthWest | North | NorthEast
                        | West              | East
@@ -96,8 +96,8 @@ type Coordinates = (Double, Double)
 
 -- Wrapper for config file metadata
 data Config = Config
-    { apiKey     :: T.Text
-    , loc        :: T.Text
+    { apiKey     :: S.Text
+    , loc        :: S.Text
     , unitSystem :: UnitSystem
     }
     deriving Generic
@@ -108,10 +108,10 @@ instance ToJSON Config
 type GeocodeRoot = [MatchedLocation]
 
 data MatchedLocation = MatchedLocation
-    { name    :: T.Text
+    { name    :: S.Text
     , lat     :: Double
     , lon     :: Double
-    , country :: T.Text
+    , country :: S.Text
     } 
     deriving Generic
 instance FromJSON MatchedLocation
@@ -120,7 +120,7 @@ instance ToJSON MatchedLocation
 data OneCallRoot = OneCallRoot
     { lat             :: Double
     , lon             :: Double
-    , timezone        :: T.Text
+    , timezone        :: S.Text
     , timezone_offset :: Integer
     , current         :: Current
     , minutely        :: Maybe [Minutely]
@@ -205,7 +205,7 @@ data Daily = Daily
     , moonrise      :: POSIXTime
     , moonset       :: POSIXTime
     , moon_phase    :: Double
-    , summary       :: T.Text
+    , summary       :: S.Text
     , d_temp        :: DailyTemp
     , d_feels_like  :: DailyFeelsLike
     , pressure      :: Integer
@@ -251,9 +251,9 @@ instance ToJSON DailyFeelsLike
 
 data Weather = Weather
     { weather_id   :: Integer
-    , weather_main :: T.Text
-    , description  :: T.Text
-    , icon         :: T.Text
+    , weather_main :: S.Text
+    , description  :: S.Text
+    , icon         :: S.Text
     }
     deriving Generic
 
@@ -263,12 +263,12 @@ instance ToJSON Weather where
     toJSON = genericToJSON defaultOptions { fieldLabelModifier = _weather }
 
 data Alert = Alert
-    { sender_name :: T.Text
-    , event       :: T.Text
+    { sender_name :: S.Text
+    , event       :: S.Text
     , start       :: POSIXTime
     , end         :: POSIXTime
-    , description :: T.Text
-    , tags        :: [T.Text]
+    , description :: S.Text
+    , tags        :: [S.Text]
     }
     deriving Generic
 

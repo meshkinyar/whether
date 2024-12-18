@@ -16,7 +16,9 @@ data Options = Options
     { optCommand :: Command }
 
 data NowOptions = NowOptions
-    { optStyle :: ForecastStyle }
+    { optStyle :: ForecastStyle
+    , optLoc   :: Maybe String
+    }
 
 data FormatStrOptions = FormatStrOptions
     { optFStr :: String }
@@ -24,6 +26,7 @@ data FormatStrOptions = FormatStrOptions
 data ForecastOptions = ForecastOptions
     { optDays  :: Int
     , optStyle :: ForecastStyle
+    , optLoc   :: Maybe String
 --  , optHours :: Int
     }
 
@@ -54,12 +57,12 @@ pOptions = Options
 
 ---- now ----
 pNow :: Parser Command
-pNow = Now <$> ( NowOptions <$> pStyle )
+pNow = Now <$> ( NowOptions <$> pStyle <*> pLoc )
 
 ----
 ---- forecast ----
 pForecast :: Parser Command
-pForecast = Forecast <$> ( ForecastOptions <$> pDays <*> pStyle )
+pForecast = Forecast <$> ( ForecastOptions <$> pDays <*> pStyle <*> pLoc )
 
 days :: ReadM Int
 days = do
@@ -99,6 +102,15 @@ pStyle = flag Minimal Complete
     <> short 'c'
     <> help  "Print a detailed forecast"
     )
+
+pLoc :: Parser (Maybe String)
+pLoc = optional $ strOption
+    (  long    "location"
+    <> short   'l'
+    <> metavar "LOCATION"
+    <> help    "Get weather information for matched LOCATION"
+    )
+
 ----
 
 -- hours :: Parser Int

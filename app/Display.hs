@@ -14,7 +14,7 @@ import qualified Types as D (Daily(dt, pressure, weather, d_temp, uvi, d_rain, d
 import qualified Types as C (Current(temp, humidity, weather))
 import qualified Types as CW (CurrentWeather(temp, cond, rH, moon))
 import qualified Types as DF (DailyForecast(cond))
-import qualified Data.Text as T ( Text, pack, unpack, unlines, show, intercalate, replicate, length )
+import qualified Data.Text as S ( Text, pack, unpack, unlines, show, intercalate, replicate, length )
 
 data DayStyle = DayAbbr | DateDash
 
@@ -22,7 +22,7 @@ data BorderType = BorderTop
                 | BorderDivider
                 | BorderBottom
 
-data Row = Row T.Text T.Text T.Text
+data Row = Row S.Text S.Text S.Text
 data BoxStyle = Rounded
 
 data Frame = Frame
@@ -40,7 +40,7 @@ data StaticIcon = TemperatureIcon
 data ContentStyle = Textual | Symbolic
 
 class Symbol a where
-    symbol :: a -> T.Text
+    symbol :: a -> S.Text
 
 instance Symbol StaticIcon where
     symbol ico = case ico of
@@ -90,19 +90,19 @@ instance Symbol MoonPhase where
         LastQuarter    -> "🌗"
         WaningCrescent -> "🌘"
 
-fSymbol :: (Symbol a) => a -> T.Text
+fSymbol :: (Symbol a) => a -> S.Text
 fSymbol t = padChar $ symbol t
 
-fDate :: DayStyle -> POSIXTime -> T.Text
-fDate s date = T.pack $ formatTime defaultTimeLocale (fstr s) $ posixSecondsToUTCTime date
+fDate :: DayStyle -> POSIXTime -> S.Text
+fDate s date = S.pack $ formatTime defaultTimeLocale (fstr s) $ posixSecondsToUTCTime date
   where
     fstr DayAbbr  = " %a "
     fstr DateDash = "%m-%d"
 
 -- Emojis are not consistently displayed in a terminal
 -- These manual adjustments are likely to change
-padChar :: T.Text -> T.Text
-padChar ch = ch <> (T.replicate p " ") where
+padChar :: S.Text -> S.Text
+padChar ch = ch <> (S.replicate p " ") where
     p | ch `elem` [ "☁ "
                   , "✨"
                   , "🌁"
@@ -121,51 +121,54 @@ borderRow bt w n = Row l m r
         BorderTop     -> ("╭", borderMiddle "┬", "╮")
         BorderDivider -> ("├", borderMiddle "┼", "┤")
         BorderBottom  -> ("╰", borderMiddle "┴", "╯")
-    borderMiddle :: T.Text -> T.Text
-    borderMiddle x = T.intercalate x $ replicate n line
+    borderMiddle :: S.Text -> S.Text
+    borderMiddle x = S.intercalate x $ replicate n line
       where
-        line = T.replicate w "─"
+        line = S.replicate w "─"
 
-contentRow :: (a -> T.Text) -> [a] -> Row
+contentRow :: (a -> S.Text) -> [a] -> Row
 contentRow formatter li = Row "│" body "│"
   where
     body = concatWrap $ map formatter li
+
+expandRow :: Row -> S.Text
+expandRow (Row x y z) = sformat (stext % stext % stext) x y z
         
-miniFormat :: T.Text -> T.Text -> T.Text
+miniFormat :: S.Text -> S.Text -> S.Text
 miniFormat icoL s = sformat (" " % stext % stext % stext) icoL s padR
   where
-    padR = T.replicate lenR " "
-    lenR = 8 - T.length s - T.length icoL
+    padR = S.replicate lenR " "
+    lenR = 8 - S.length s - S.length icoL
 
-compFormat :: T.Text -> T.Text -> T.Text
+compFormat :: S.Text -> S.Text -> S.Text
 compFormat = sformat (" " % stext % "  " % stext % " ")
 
 ---- Element formatters
 
-miniCond :: Maybe WeatherCondition -> T.Text
+miniCond :: Maybe WeatherCondition -> S.Text
 miniCond c = miniFormat "  " $ maybe "" fSymbol c
 
-compCond :: ContentStyle -> WeatherCondition -> T.Text
+compCond :: ContentStyle -> WeatherCondition -> S.Text
 compCond s c = compFormat (glyph s) info
   where
     glyph Symbolic = fSymbol c
     glyph _ = "F "
-    info = T.show c
+    info = S.show c
 
 
-miniTemps :: (Temperature, Temperature) -> (T.Text, T.Text)
+miniTemps :: (Temperature, Temperature) -> (S.Text, S.Text)
 miniTemps (l, h) = (f "⏷ " l, f "⏶ " h) 
   where
-    f i t = miniFormat i (T.show t <> " ")
+    f i t = miniFormat i (S.show t <> " ")
 
-compTemps :: (Temperature, Temperature) -> T.Text
+compTemps :: (Temperature, Temperature) -> S.Text
 compTemps (h, l) = compFormat (fSymbol TemperatureIcon)
-                              (T.show l <> " - " <> T.show h)
+                              (S.show l <> " - " <> S.show h)
 
-compHumidity :: Temperature -> Integer -> T.Text
+compHumidity :: Temperature -> Integer -> S.Text
 compHumidity (T u t) rh = compFormat 
     (fSymbol hiIndicator)
-    (T.show rh <> (symbol hiIndicator) <> " " <> (T.show $ hiDiff hi))
+    (S.show rh <> (symbol hiIndicator) <> " " <> (S.show $ hiDiff hi))
   where
     hiDiff (T _ t') = round1d (t' - t)
     round1d = \x -> (fromIntegral (round (x * 10) :: Integer) :: Double) / 10
@@ -216,34 +219,33 @@ getCurrentWeather config oneCall = CurrentWeather
                     []  -> Nothing
     }
 
-concatWrap :: [T.Text] -> T.Text
-concatWrap t = T.pack $ concat $ wrapLine (map T.unpack t)
+concatWrap :: [S.Text] -> S.Text
+concatWrap t = S.pack $ concat $ wrapLine (map S.unpack t)
   where
     wrapLine []     = []
     wrapLine [x]    = [x]
     wrapLine (x:xs) = x : "│" : wrapLine xs
 
-miniDate :: DayStyle -> POSIXTime -> T.Text
+miniDate :: DayStyle -> POSIXTime -> S.Text
 miniDate ds t = miniFormat " " (fDate ds t)
 
 -- Formatters
 
-statusString :: CurrentWeather -> T.Text
+statusString :: CurrentWeather -> S.Text
 statusString cw =
-    sformat fStr (mb (padE . symbol) CW.cond)
+    sformat fStr (maybe "  " (padE . symbol) $ CW.cond cw)
                  (element CW.temp)
                  (element CW.rH)
-                 (mb T.show CW.moon)
+                 (maybe "  " symbol $ CW.moon cw)
       where
         fStr      = stext % stext % " 🌢  " % stext % "% " % stext
-        element x = T.show $ x cw
-        mb y0 y1  = maybe "  " y0 (y1 cw)
+        element x = S.show $ x cw
         padE z | z == padChar z = z
                | otherwise       = z <> " "
 
-basicForecast :: Int -> [DailyForecast] -> T.Text
+basicForecast :: Int -> [DailyForecast] -> S.Text
 basicForecast n df =
-    T.unlines $ map interpBox
+    S.unlines $ map expandRow
         [
           border BorderTop
         , dateStr
@@ -256,7 +258,6 @@ basicForecast n df =
     where
       border bt = borderRow bt 9 n 
       days = take n df
-      interpBox (Row x y z) = sformat (stext % stext % stext) x y z
       condition = contentRow (miniCond . DF.cond) days
       temperature f = contentRow (f . miniTemps . temps) days
       dateStr = contentRow (miniDate DayAbbr . time) days
