@@ -8,6 +8,7 @@ module Types where
 
 import Data.Aeson
 import Data.Time.Clock.POSIX    ( POSIXTime )
+import Data.Time.Clock          ( UTCTime )
 import GHC.Generics             ( Generic )
 import qualified Data.Text as S ( Text )
 
@@ -35,6 +36,8 @@ instance ToJSON UnitSystem
 
 data Precipitation = Inch Double | Millimetre Double
 
+data Speed = MilesPerHour Double | MetresPerSecond Double
+
 data MoonPhase = NewMoon  | WaxingCrescent | FirstQuarter | WaxingGibbous
                | FullMoon | WaningGibbous  | LastQuarter  | WaningCrescent
     deriving Generic
@@ -46,6 +49,20 @@ data WeatherCondition = ClearDay | ClearNight
                       | Fog      | Mist         | Haze         | Smoke 
                       | Snow     | Sleet
     deriving (Generic, Eq)
+
+data Temperature = Kelvin Double | Celsius Double | Fahrenheit Double
+    deriving Generic
+
+type RelativeHumidity = Integer
+type Pressure = Integer
+type UVI = Double
+
+data Humidity = Humidity RelativeHumidity Temperature
+
+data Wind = Wind CardinalDirection Speed
+    deriving Generic
+
+data PressureLevel = HighPressure | NormalPressure | LowPressure
 
 instance FromJSON WeatherCondition
 
@@ -62,7 +79,7 @@ instance Show MoonPhase where
 
 
 instance Show WeatherCondition where
-    show condition = case condition of
+    show c = case c of
         ClearDay     -> "Clear"
         ClearNight   -> "Clear"
         Cloudy       -> "Cloudy"
@@ -79,18 +96,20 @@ instance Show WeatherCondition where
         Haze         -> "Haze"
         Smoke        -> "Smoke"
 
-data Temperature = T UnitSystem Double
-    deriving Generic
-
-data Wind = Wind UnitSystem CardinalDirection Double
-    deriving Generic
-
 instance Show Temperature where
-    show (T u t) = show (round t :: Integer) ++ unit where
-        unit = case u of
-            Standard -> "K"
-            Metric   -> "°C"
-            Imperial -> "°F"
+    show temperature = te temperature
+      where
+        te (Kelvin t)     = f t "K"
+        te (Celsius t)    = f t "°C"
+        te (Fahrenheit t) = f t "°F"
+        f x u = show (round x :: Integer) <> u
+
+instance Show Speed where
+    show speed = sp speed
+      where
+        sp (MilesPerHour s)    = f s "mph"
+        sp (MetresPerSecond s) = f s "m/s"
+        f x u = show (round x :: Integer) <> " " <> u
 
 type Coordinates = (Double, Double)
 
@@ -138,10 +157,10 @@ data Current = Current
     , sunset     :: POSIXTime
     , temp       :: Double
     , feels_like :: Double
-    , pressure   :: Integer
-    , humidity   :: Integer
+    , pressure   :: Pressure
+    , humidity   :: RelativeHumidity
     , dew_point  :: Double
-    , uvi        :: Double
+    , uvi        :: UVI
     , clouds     :: Integer
     , visibility :: Maybe Integer
     , wind_speed :: Double
@@ -171,8 +190,8 @@ data Hourly = Hourly
     { dt         :: POSIXTime
     , temp       :: Double
     , feels_like :: Double
-    , pressure   :: Integer
-    , humidity   :: Integer
+    , pressure   :: Pressure
+    , humidity   :: RelativeHumidity
     , dew_point  :: Double
     , uvi        :: Double
     , clouds     :: Integer
@@ -208,8 +227,8 @@ data Daily = Daily
     , summary       :: S.Text
     , d_temp        :: DailyTemp
     , d_feels_like  :: DailyFeelsLike
-    , pressure      :: Integer
-    , humidity      :: Integer
+    , pressure      :: Pressure
+    , humidity      :: RelativeHumidity
     , dew_point     :: Double
     , wind_speed    :: Double
     , wind_deg      :: Integer
@@ -278,25 +297,24 @@ instance ToJSON Alert
 -- Encoding
 
 data DailyForecast = DailyForecast
-    { time  :: POSIXTime
-    , cond  :: Maybe WeatherCondition
-    , temps :: (Temperature, Temperature)
-    , rH    :: Integer
-    , hPa   :: Integer
-    , wind  :: Maybe Wind
-    , uvi   :: Double
-    , rain  :: Maybe Precipitation
-    , snow  :: Maybe Precipitation
+    { time         :: UTCTime
+    , condition    :: Maybe WeatherCondition
+    , temperatures :: (Temperature, Temperature)
+    , humidity     :: Humidity
+    , pressure     :: Pressure
+    , wind         :: Maybe Wind
+    , uvi          :: UVI
+    , rain         :: Maybe Precipitation
+    , snow         :: Maybe Precipitation
     }
 
 data CurrentWeather = CurrentWeather
     { cond :: Maybe WeatherCondition
     , temp :: Temperature
-    , rH   :: Integer
+    , rH   :: RelativeHumidity
     , moon :: Maybe MoonPhase
     }
 
-data PressureLevel = HighPressure | NormalPressure | LowPressure
 
 -- Label Functions
 

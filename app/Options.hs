@@ -8,7 +8,6 @@ import Data.Ix ( inRange )
 data ForecastStyle = Minimal | Complete
 
 data Command = Now NowOptions 
-             | FormatStr FormatStrOptions
              | Forecast  ForecastOptions
              | Calibrate
 
@@ -16,12 +15,10 @@ data Options = Options
     { optCommand :: Command }
 
 data NowOptions = NowOptions
-    { optStyle :: ForecastStyle
-    , optLoc   :: Maybe String
+    { optStyle  :: ForecastStyle
+    , optFormat :: Maybe String
+    , optLoc    :: Maybe String
     }
-
-data FormatStrOptions = FormatStrOptions
-    { optFStr :: String }
 
 data ForecastOptions = ForecastOptions
     { optDays  :: Int
@@ -43,10 +40,6 @@ pOptions = Options
         ( info pForecast
         $ progDesc "Output a weather forecast for a specified time period"
         )
-    <> command "format"
-        ( info pFormatStr
-        $ progDesc "Output weather information according to a formatting string"
-        )
     <> command "calibrate"
         ( info pCalibrate
         $ progDesc "Calibrate emoji widths"
@@ -57,8 +50,7 @@ pOptions = Options
 
 ---- now ----
 pNow :: Parser Command
-pNow = Now <$> ( NowOptions <$> pStyle <*> pLoc )
-
+pNow = Now <$> ( NowOptions <$> pStyle <*> pFormat <*> pLoc )
 ----
 ---- forecast ----
 pForecast :: Parser Command
@@ -79,17 +71,6 @@ pDays = option days
     <> help    "Forecast N days"
     )
 ----
----- format ----
-pFormatStr :: Parser Command
-pFormatStr = FormatStr <$> ( FormatStrOptions <$> pFStr )
-
-pFStr :: Parser String
-pFStr = strOption
-    (  long    "format"
-    <> short   'f'
-    <> metavar "FORMAT_STR" 
-    <> help    "Output weather status to format specified by FORMAT_STR"
-    )
 ----
 ---- calibrate ----
 pCalibrate :: Parser Command
@@ -111,6 +92,13 @@ pLoc = optional $ strOption
     <> help    "Get weather information for matched LOCATION"
     )
 
+pFormat :: Parser (Maybe String)
+pFormat = optional $ strOption
+    (  long    "format"
+    <> short   'f'
+    <> metavar "FORMAT_STR" 
+    <> help    "Output weather status to format specified by FORMAT_STR"
+    )
 ----
 
 -- hours :: Parser Int

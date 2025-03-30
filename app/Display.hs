@@ -2,34 +2,55 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 module Display where
 
 import Types
 import Conversions
 import Data.Time.Format
-import Data.Time.Clock.POSIX ( POSIXTime, posixSecondsToUTCTime )
+import Data.Time.Clock.POSIX ( posixSecondsToUTCTime )
+import Data.Time.Clock ( UTCTime )
 import Formatting
 import qualified Types as D (Daily(dt, pressure, weather, d_temp, uvi, d_rain, d_snow, humidity, wind_speed, wind_deg), DailyTemp(max, min))
 import qualified Types as C (Current(temp, humidity, weather))
 import qualified Types as CW (CurrentWeather(temp, cond, rH, moon))
-import qualified Types as DF (DailyForecast(cond))
-import qualified Data.Text as S ( Text, pack, unpack, unlines, show, intercalate, replicate, length )
+import qualified Types as DF (DailyForecast(time, condition, temperatures, humidity, pressure, wind, uvi, rain, snow))
+import qualified Data.Text as S ( Text, pack, unpack, show, intercalate, replicate, length, unlines )
+
+data DTStyle = DayStyle DayStyle
 
 data DayStyle = DayAbbr | DateDash
 
-data BorderType = BorderTop
-                | BorderDivider
-                | BorderBottom
+data Element = Border Border |
+               forall a. (Component a) => Component (Forecast -> [a])
 
-data Row = Row S.Text S.Text S.Text
-data BoxStyle = Rounded
+data Border = Top
+            | Divider
+            | Bottom
+
+data DisplayMode = Basic | Expanded
+
+data FrameProperties = FrameProperties
+    { lineStyle    :: LineStyle
+    , dtStyle      :: DTStyle
+    , contentStyle :: ContentStyle
+    , colWidth     :: Int
+    , mode         :: DisplayMode
+    }
 
 data Frame = Frame
-    { style    :: BoxStyle
-    , captions :: Row
-    , content  :: [Row]
+    { properties :: FrameProperties
+    , order      :: [Element]
     }
+
+data Row = Row S.Text S.Text S.Text
+
+data Cell = C1 [S.Text] | C2 [(S.Text, S.Text)]
+
+data LineStyle = Rounded
+
+data Forecast = DF [DailyForecast]
 
 data StaticIcon = TemperatureIcon
                 | HumidityIcon
@@ -62,7 +83,7 @@ instance Symbol CardinalDirection where
         SouthEast -> "↘ "
 
 instance Symbol WeatherCondition where
-    symbol condition = case condition of
+    symbol c = case c of
         ClearDay     -> "☀️ "
         ClearNight   -> "✨"
         Cloudy       -> "☁ "
@@ -90,14 +111,122 @@ instance Symbol MoonPhase where
         LastQuarter    -> "🌗"
         WaningCrescent -> "🌘"
 
+class CellInner a where
+    concatWrap :: [a] -> a
+
+instance CellInner S.Text where
+    concatWrap t = S.pack $ concat $ wrapLine (map S.unpack t)
+      where
+        wrapLine []     = []
+        wrapLine [x]    = [x]
+        wrapLine (x:xs) = x : "│" : wrapLine xs
+
+instance CellInner (S.Text, S.Text) where
+    concatWrap tuplelist = (concatWrap f, concatWrap s)
+      where
+        (f, s) = unzip tuplelist
+
+class Component a where
+    displayB :: FrameProperties -> [a] -> Cell
+    displayE :: FrameProperties -> [a] -> Cell
+
+instance Component (UTCTime) where
+    displayB fp ts = C1 $ map bFmt ts
+      where
+        bFmt t = basicFormat fp " " (fDate (dtStyle fp) t)
+    displayE fp ts = C1 $ map eFmt ts
+      where
+        eFmt t = basicFormat fp " " (fDate (dtStyle fp) t)
+
+instance Component (Maybe WeatherCondition) where
+    displayB fp wcs = C1 $ map bFmt wcs
+      where
+        bFmt wc = basicFormat fp "  " $ maybe "  " fSymbol wc
+    displayE fp wcs = C1 $ map eFmt wcs
+      where
+        eFmt wc = compFormat (glyph $ contentStyle fp) (S.show wc)
+          where
+            glyph Symbolic = maybe "  " fSymbol wc
+            glyph Textual  = "WF"
+
+instance Component (Temperature, Temperature) where
+    displayB fp lhs = C2 $ map bFmt lhs
+      where
+        bFmt (l, h) = (f "⏶ " h, f "⏷ " l)
+        f ico t = basicFormat fp ico (S.show t <> " ")
+    displayE fp lhs = C1 $ map eFmt lhs
+      where
+        eFmt (l, h) = compFormat (glyph $ contentStyle fp) (S.show l <> " - " <> S.show h)
+        glyph Symbolic = fSymbol TemperatureIcon
+        glyph Textual  = "T "
+
+instance Component Humidity where
+    displayB fp hs = C1 $ map bFmt hs
+      where
+        bFmt (Humidity rh _) = basicFormat fp "  " $ S.show rh
+    displayE fp hs = C1 $ map eFmt hs
+      where
+        eFmt (Humidity rh t) = compFormat (fSymbol HumidityIcon) $ S.show rh <> hiIndicator <> " " <> (S.show $ hiDiff t)
+          where
+            hi        = toHeatIndex t rh
+            hiDiff t' = liftT2 (-) t' t
+            hiIndicator
+                | numT (hiDiff hi) < 0 = glyph TriangleDownIcon "-"
+                | otherwise            = glyph TriangleUpIcon   "+"
+            glyph ico txt = case (contentStyle fp) of
+                Symbolic -> fSymbol ico
+                Textual  -> txt
+
+instance Component (Maybe Wind) where
+    displayB fp ws = C1 $ map bFmt ws
+      where
+        bFmt w = basicFormat fp "  " $ maybe "  " (\(Wind _ s) -> S.show s) w
+    displayE fp ws = C1 $ map eFmt ws
+      where
+        eFmt Nothing           = compFormat "  " "  "
+        eFmt (Just (Wind d s)) = compFormat (glyph d) (S.show s)
+        glyph = case (contentStyle fp) of
+            Symbolic -> fSymbol
+            Textual  -> S.show
+
+-- Field Accessors
+
+timeDisplay :: Forecast -> [UTCTime]
+timeDisplay (DF f) = map DF.time f
+
+weatherCondition :: Forecast -> [Maybe WeatherCondition]
+weatherCondition (DF f) = map DF.condition f
+
+temperature :: Forecast -> [(Temperature, Temperature)]
+temperature (DF f) = map DF.temperatures f
+
+humidity :: Forecast -> [Humidity]
+humidity (DF f) = map DF.humidity f
+
+pressure :: Forecast -> [Pressure]
+pressure (DF f) = map DF.pressure f
+
+wind :: Forecast -> [Maybe Wind]
+wind (DF f) = map DF.wind f
+
+uvi :: Forecast -> [UVI]
+uvi (DF f) = map DF.uvi f
+
+rain :: Forecast -> [Maybe Precipitation]
+rain (DF f) = map DF.rain f
+
+snow :: Forecast -> [Maybe Precipitation]
+snow (DF f) = map DF.snow f
+
 fSymbol :: (Symbol a) => a -> S.Text
 fSymbol t = padChar $ symbol t
 
-fDate :: DayStyle -> POSIXTime -> S.Text
-fDate s date = S.pack $ formatTime defaultTimeLocale (fstr s) $ posixSecondsToUTCTime date
+fDate :: (FormatTime a) => DTStyle -> a -> S.Text
+fDate s date = S.pack $
+    formatTime defaultTimeLocale (fstr s) date
   where
-    fstr DayAbbr  = " %a "
-    fstr DateDash = "%m-%d"
+    fstr (DayStyle DayAbbr)  = " %a "
+    fstr (DayStyle DateDash) = "%m-%d"
 
 -- Emojis are not consistently displayed in a terminal
 -- These manual adjustments are likely to change
@@ -113,121 +242,76 @@ padChar ch = ch <> (S.replicate p " ") where
                   ] = 0
       | otherwise   = 1
 
-
-borderRow :: BorderType -> Int -> Int -> Row
-borderRow bt w n = Row l m r
+borderRow :: LineStyle -> Border -> Int -> Int -> Row
+borderRow st btype w n = Row l m r
   where
-    (l, m, r) = case bt of
-        BorderTop     -> ("╭", borderMiddle "┬", "╮")
-        BorderDivider -> ("├", borderMiddle "┼", "┤")
-        BorderBottom  -> ("╰", borderMiddle "┴", "╯")
+    (l, m, r) = case st of 
+        Rounded -> case btype of
+            Top     -> ("╭", borderMiddle "┬", "╮")
+            Divider -> ("├", borderMiddle "┼", "┤")
+            Bottom  -> ("╰", borderMiddle "┴", "╯")
     borderMiddle :: S.Text -> S.Text
     borderMiddle x = S.intercalate x $ replicate n line
       where
         line = S.replicate w "─"
 
-contentRow :: (a -> S.Text) -> [a] -> Row
-contentRow formatter li = Row "│" body "│"
-  where
-    body = concatWrap $ map formatter li
+-- contentRow :: (a -> S.Text) -> [a] -> Row
+-- contentRow formatter li = Row "│" body "│"
+--   where
+--     body = concatWrap $ map formatter li
 
 expandRow :: Row -> S.Text
 expandRow (Row x y z) = sformat (stext % stext % stext) x y z
         
-miniFormat :: S.Text -> S.Text -> S.Text
-miniFormat icoL s = sformat (" " % stext % stext % stext) icoL s padR
+basicFormat :: FrameProperties -> S.Text -> S.Text -> S.Text
+basicFormat fp icoL t = sformat (" " % stext % stext % stext) icoL t padR
   where
     padR = S.replicate lenR " "
-    lenR = 8 - S.length s - S.length icoL
+    lenR = (colWidth fp) - S.length t - S.length icoL - 1
 
 compFormat :: S.Text -> S.Text -> S.Text
 compFormat = sformat (" " % stext % "  " % stext % " ")
-
----- Element formatters
-
-miniCond :: Maybe WeatherCondition -> S.Text
-miniCond c = miniFormat "  " $ maybe "" fSymbol c
-
-compCond :: ContentStyle -> WeatherCondition -> S.Text
-compCond s c = compFormat (glyph s) info
-  where
-    glyph Symbolic = fSymbol c
-    glyph _ = "F "
-    info = S.show c
-
-
-miniTemps :: (Temperature, Temperature) -> (S.Text, S.Text)
-miniTemps (l, h) = (f "⏷ " l, f "⏶ " h) 
-  where
-    f i t = miniFormat i (S.show t <> " ")
-
-compTemps :: (Temperature, Temperature) -> S.Text
-compTemps (h, l) = compFormat (fSymbol TemperatureIcon)
-                              (S.show l <> " - " <> S.show h)
-
-compHumidity :: Temperature -> Integer -> S.Text
-compHumidity (T u t) rh = compFormat 
-    (fSymbol hiIndicator)
-    (S.show rh <> (symbol hiIndicator) <> " " <> (S.show $ hiDiff hi))
-  where
-    hiDiff (T _ t') = round1d (t' - t)
-    round1d = \x -> (fromIntegral (round (x * 10) :: Integer) :: Double) / 10
-    hi = toHeatIndex (T u t) rh
-    hiIndicator
-        | hiDiff hi < 0 = TriangleDownIcon
-        | otherwise     = TriangleUpIcon
 
 getWeatherCondition :: Bool -> [Weather] -> Maybe WeatherCondition
 getWeatherCondition y (x:_) = toWeatherCondition y $ weather_id x
 getWeatherCondition _ [] = Nothing
 
-getDailyForecast :: Config -> OneCallRoot -> [DailyForecast]
-getDailyForecast config oneCall =
+getDailyForecast :: Config -> OneCallRoot -> Forecast
+getDailyForecast config oneCall = DF $
     map newDF $ daily oneCall
       where
         newDF d = DailyForecast
-          { time  = D.dt d
-          , cond  = getWeatherCondition True $ D.weather d
-          , temps = (t D.min, t D.max)
-          , rH    = D.humidity d
-          , hPa   = D.pressure d
-          , wind  = windF $ D.wind_deg d
-          , uvi   = D.uvi d
-          , rain  = precip D.d_rain
-          , snow  = precip D.d_snow
+          { time         = posixSecondsToUTCTime $ D.dt d
+          , condition    = getWeatherCondition True $ D.weather d
+          , temperatures = (t D.min, t D.max)
+          , humidity     = Humidity (D.humidity d) avgT
+          , pressure     = D.pressure d
+          , wind         = windF $ D.wind_deg d
+          , uvi          = D.uvi d
+          , rain         = precip D.d_rain
+          , snow         = precip D.d_snow
           }
           where
-            t f  = T (unitSystem config)
-                     (f $ D.d_temp d)
+            u = unitSystem config
+            t f  = toTemperature u (f $ D.d_temp d)
+            avgT = liftT2 (\x y -> (x + y) / 2) (t D.min) (t D.max)
             precip f = do
                 p <- f d
-                return (toPrecipitation config p)
+                return (toPrecipitation u p)
             windF direction = do
                 dir <- toCardinalDirection direction
-                return $ Wind (unitSystem config)
-                              dir
-                              (D.wind_speed d)
+                return $ Wind dir (toSpeed u (D.wind_speed d))
 
 getCurrentWeather :: Config -> OneCallRoot -> CurrentWeather
 getCurrentWeather config oneCall = CurrentWeather
     { cond    = getWeatherCondition (isDayCurrent $ current oneCall)
               $ C.weather $ current oneCall
-    , temp    = T (unitSystem config) (C.temp $ current oneCall)
+    , temp    = toTemperature (unitSystem config) (C.temp $ current oneCall)
     , rH      = C.humidity $ current oneCall
     , moon    = case (daily $ oneCall) of
                     x:_ -> toMoonPhase $ moon_phase $ x
                     []  -> Nothing
     }
-
-concatWrap :: [S.Text] -> S.Text
-concatWrap t = S.pack $ concat $ wrapLine (map S.unpack t)
-  where
-    wrapLine []     = []
-    wrapLine [x]    = [x]
-    wrapLine (x:xs) = x : "│" : wrapLine xs
-
-miniDate :: DayStyle -> POSIXTime -> S.Text
-miniDate ds t = miniFormat " " (fDate ds t)
 
 -- Formatters
 
@@ -243,21 +327,75 @@ statusString cw =
         padE z | z == padChar z = z
                | otherwise       = z <> " "
 
-basicForecast :: Int -> [DailyForecast] -> S.Text
-basicForecast n df =
-    S.unlines $ map expandRow
-        [
-          border BorderTop
-        , dateStr
-        , border BorderDivider
-        , condition 
-        , temperature snd
-        , temperature fst
-        , border BorderBottom
-        ]
-    where
-      border bt = borderRow bt 9 n 
-      days = take n df
-      condition = contentRow (miniCond . DF.cond) days
-      temperature f = contentRow (f . miniTemps . temps) days
-      dateStr = contentRow (miniDate DayAbbr . time) days
+basicFrame :: Frame
+basicFrame = Frame
+    {
+      properties = FrameProperties 
+          {
+            lineStyle    = Rounded
+          , dtStyle      = DayStyle DayAbbr
+          , contentStyle = Symbolic
+          , colWidth     = 9
+          , mode         = Basic
+          }
+    , order      =
+          [
+            Border Top
+          , Component timeDisplay
+          , Border Divider
+          , Component weatherCondition
+          , Component temperature
+          , Border Bottom
+          ]
+    }
+
+formatRows :: FrameProperties -> Int -> Forecast -> Element -> [Row]
+formatRows fp n _ (Border b) = [Row l m r]
+  where
+    (l, m, r) = case (lineStyle fp) of 
+        Rounded -> case b of
+            Top     -> ("╭", borderMiddle "┬", "╮")
+            Divider -> ("├", borderMiddle "┼", "┤")
+            Bottom  -> ("╰", borderMiddle "┴", "╯")
+    borderMiddle :: S.Text -> S.Text
+    borderMiddle x = S.intercalate x $ replicate n line
+      where
+        line = S.replicate (colWidth fp) "─"
+formatRows fp n (DF forecast) (Component c) = makeRows $ cells (DF $ take n forecast)
+  where
+    cells f = case (mode fp) of
+        Basic    -> displayB fp (c f)
+        Expanded -> displayE fp (c f)
+
+makeRows :: Cell -> [Row]
+makeRows (C1 ts) = [Row "│" (concatWrap ts) "│"]
+makeRows (C2 ts) = [Row "│" (concatWrap f) "│", Row "│" (concatWrap s) "│"]
+  where
+    (f, s) = unzip ts
+
+basicForecast :: Frame -> Int -> Forecast -> S.Text
+basicForecast frame n fs = S.unlines $ map expandRow $ concat $ map (formatRows (properties frame) n fs) (order frame)
+
+-- basicForecast :: Frame -> Int -> [DailyForecast] -> S.Text
+-- basicForecast f n df =
+--     S.unlines $ map
+
+-- basicForecast' :: Int -> [DailyForecast] -> S.Text
+-- basicForecast' n df =
+--     S.unlines $ map expandRow
+--         [
+--           border Top
+--         , dateStr
+--         , border Divider
+--         , condition 
+--         , temperature snd
+--         , temperature fst
+--         , border Bottom
+--         ]
+--     where
+--       border bt = borderRow Rounded bt 9 n 
+--       days = take n df
+--       condition = contentRow (displayE Symbolic . DF.cond) days
+--       temperature f = contentRow (f . displayB . temps) days
+--       dateStr = contentRow (miniDate DayAbbr . time) days
+--

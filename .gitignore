@@ -1,5 +1,8 @@
+.gitignore
 dist-newstyle/
 .cache/*
 config.json
 tags
 ByteString
+.gitignore
+r.hss

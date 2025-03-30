@@ -49,10 +49,9 @@ main = do
     config <- getConfig 
     opts   <- execParser (info pOptions idm)
     case (optCommand opts) of
-        Now       o -> cmdNow       config o
-        Forecast  o -> cmdForecast  config o
-        FormatStr o -> cmdFormatStr config o
-        Calibrate   -> cmdCalibrate
+        Now      o -> cmdNow       config o
+        Forecast o -> cmdForecast  config o
+        Calibrate  -> cmdCalibrate
 
 -- Print information about the current weather
 cmdNow :: Config -> NowOptions -> IO ()
@@ -64,13 +63,7 @@ cmdNow config _ = do
 cmdForecast :: Config -> ForecastOptions -> IO ()
 cmdForecast config opt = do
     oneCall <- getOneCall True config
-    T.putStrLn (basicForecast (optDays opt) $ getDailyForecast config oneCall) 
-
--- Print a custom formatted string
-cmdFormatStr :: Config -> FormatStrOptions -> IO ()
-cmdFormatStr config _ = do
-    _ <- getOneCall True config
-    T.putStrLn "WIP"
+    T.putStrLn $ basicForecast basicFrame (optDays opt) $ getDailyForecast config oneCall
 
 -- Calibrate Emoji widths
 cmdCalibrate :: IO ()

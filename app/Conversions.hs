@@ -10,6 +10,55 @@ import Data.Text.Encoding ( encodeUtf8 )
 
 import qualified Types as C ( Current(dt, sunrise, sunset) )
 
+-- (-...) :: Temperature -> Temperature -> Temperature
+-- Fahrenheit t      -... Fahrenheit t' = Fahrenheit (t - t')
+-- tu@(Fahrenheit _) -... tu'           = tu -... (toFahrenheit tu')
+-- Celsius t         -... Celsius t'    = Celsius (t - t')
+-- tu@(Celsius _)    -... tu'           = tu -... (toCelsius tu')
+-- Kelvin t          -... Kelvin t'     = Kelvin (t - t')
+-- tu@(Kelvin _)     -... tu'           = tu -... (toKelvin tu')
+
+liftT :: (Double -> Double) -> Temperature -> Temperature
+liftT f (Fahrenheit t) = Fahrenheit (f t)
+liftT f (Celsius t)    = Celsius (f t)
+liftT f (Kelvin t)     = Kelvin (f t)
+
+numT :: Temperature -> Double
+numT (Fahrenheit t) = t
+numT (Celsius t)    = t
+numT (Kelvin t)     = t
+
+liftT2 :: (Double -> Double -> Double) -> Temperature -> Temperature -> Temperature
+liftT2 f (Fahrenheit t)    (Fahrenheit t') = Fahrenheit (f t t')
+liftT2 f ut@(Fahrenheit _) ut'             = liftT2 f ut (toFahrenheit ut')
+liftT2 f (Celsius t)       (Celsius t')    = Celsius    (f t t')
+liftT2 f ut@(Celsius _)    ut'             = liftT2 f ut (toCelsius ut')
+liftT2 f (Kelvin t)        (Kelvin t')     = Kelvin (f t t')
+liftT2 f ut@(Kelvin _)     ut'             = liftT2 f ut (toKelvin ut')
+
+toFahrenheit :: Temperature -> Temperature
+toFahrenheit (Fahrenheit t) = Fahrenheit t
+toFahrenheit (Celsius t)    = Fahrenheit $ t * 1.8 + 32
+toFahrenheit (Kelvin t)     = Fahrenheit $ (t - 273.15) * 1.8 + 32
+
+toCelsius :: Temperature -> Temperature
+toCelsius (Fahrenheit t) = Celsius $ (t - 32) * (5 / 9 :: Double)
+toCelsius (Celsius t)    = Celsius t
+toCelsius (Kelvin t)     = Celsius $ t - 273.15
+
+toKelvin :: Temperature -> Temperature
+toKelvin (Fahrenheit t) = Kelvin $ (t - 32) * (5 / 9 :: Double) + 273.15
+toKelvin (Celsius t)    = Kelvin $ t + 273.15
+toKelvin (Kelvin t)     = Kelvin t
+-- roundT :: Temperature -> Temperature
+-- roundT = 
+-- roundT (Fahrenheit t) = Fahrenheit (round1 t)
+-- roundT (Celsius t)    = Celsius    (round1 t)
+-- roundT (Kelvin t)     = Kelvin     (round1 t)
+
+round1 :: Double -> Double
+round1 x = fromIntegral (floor (x + 0.5) :: Integer) :: Double
+
 -- Convert the OWM moon_phase float to a defined MoonPhase type
 toMoonPhase :: Double -> Maybe MoonPhase
 toMoonPhase x
@@ -84,10 +133,18 @@ formatCoord x = encodeUtf8 $ pack $ show x
 formatTUnits :: UnitSystem -> ByteString
 formatTUnits x = encodeUtf8 $ pack $ show x
 
-toPrecipitation :: Config -> Double -> Precipitation
-toPrecipitation config p = case (unitSystem config) of 
-    Imperial -> Inch (p / 25.4) 
-    _        -> Millimetre p
+toPrecipitation :: UnitSystem -> Double -> Precipitation
+toPrecipitation Imperial p = Inch p
+toPrecipitation _ p = Millimetre p
+
+toTemperature :: UnitSystem -> Double -> Temperature
+toTemperature Imperial t = Fahrenheit t
+toTemperature Metric t   = Celsius t
+toTemperature Standard t = Kelvin t
+
+toSpeed :: UnitSystem -> Double -> Speed
+toSpeed Imperial s = MilesPerHour s
+toSpeed _ s = MetresPerSecond s
 
 toPressureLevel :: Integer -> PressureLevel
 toPressureLevel p
@@ -95,20 +152,25 @@ toPressureLevel p
     | p < 1012  = LowPressure
     | otherwise = NormalPressure
 
+-- Formula: https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml
 toHeatIndex :: Temperature -> Integer -> Temperature
-toHeatIndex (T u baseTemp) rhPercent = T u finalHI
+toHeatIndex temperature rhI = out
   where
-    finalHI
-        | adjHI < 80 = 0.5 * (t + 61 + ((t - 68) * 1.2) + (rh * 0.094))
-        | otherwise  = adjHI
-    adjHI
-        | rh < 0.13 && t > 80 && t < 112 = hi + ((13 - rh) / 4) * sqrt ((17 - (abs 95)) / 17)
-        | rh > 0.85 && t > 80 && t < 87 = hi + ((rh - 85) / 10) * ((87 - t) / 5)
-        | otherwise = hi
-    hi = -42.379 + 2.04901523*t + 10.14333127*rh - 0.22475541*t*rh - 0.00683783*t*t - 0.05481717*rh*rh + 0.00122874*t*t*rh + 0.00085282*t*rh*rh - 0.00000199*t*t*rh*rh
-    rh = (fromIntegral rhPercent) * 0.01
-    t = case u of
-        Imperial -> t
-        Metric   -> 32 + baseTemp * 1.8
-        Standard -> 32 + (baseTemp - 273.15) * 1.8
+    out = case temperature of
+        Fahrenheit _  -> finalHI
+        Celsius    _  -> toCelsius finalHI
+        Kelvin     _  -> toKelvin finalHI
+    finalHI = heatIndex (toFahrenheit temperature)
+    heatIndex (Fahrenheit t)
+        | adjHI < 80 = Fahrenheit $ 0.5 * (t + 61 + ((t - 68) * 1.2) + (rh * 0.094))
+        | otherwise  = Fahrenheit adjHI
+          where
+            rh = fromIntegral rhI
+            hi = -42.379 + 2.04901523*t + 10.14333127*rh - 0.22475541*t*rh - 0.00683783*t*t - 0.05481717*rh*rh + 0.00122874*t*t*rh + 0.00085282*t*rh*rh - 0.00000199*t*t*rh*rh
+            adjHI
+                | rh < 0.13 && t > 80 && t < 112 = hi - ((13 - rh) / 4) * sqrt ((17 - (abs (t - 95))) / 17)
+                | rh > 0.85 && t > 80 && t < 87 = hi + ((rh - 85) / 10) * ((87 - t) / 5)
+                | otherwise = hi
+    heatIndex _ = error "heatIndex is not implemented for Celsius or Kelvin"
+
 
