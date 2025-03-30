@@ -5,7 +5,7 @@ module Options where
 import Options.Applicative
 import Data.Ix ( inRange )
 
-data ForecastStyle = Minimal | Complete
+data ForecastStyle = Basic | Expanded
 
 data Command = Now NowOptions 
              | Forecast  ForecastOptions
@@ -78,10 +78,10 @@ pCalibrate = pure Calibrate
 
 ---- Common ----
 pStyle :: Parser ForecastStyle
-pStyle = flag Minimal Complete
+pStyle = flag Basic Expanded
     (  long  "complete" 
-    <> short 'c'
-    <> help  "Print a detailed forecast"
+    <> short 'e'
+    <> help  "Print an expanded forecast"
     )
 
 pLoc :: Parser (Maybe String)

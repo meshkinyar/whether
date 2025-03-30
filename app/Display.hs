@@ -180,7 +180,7 @@ instance Component Humidity where
 instance Component (Maybe Wind) where
     displayB fp ws = C1 $ map bFmt ws
       where
-        bFmt w = basicFormat fp "  " $ maybe "  " (\(Wind _ s) -> S.show s) w
+        bFmt w = basicFormat fp " " $ maybe "  " (\(Wind _ s) -> S.show s) w
     displayE fp ws = C1 $ map eFmt ws
       where
         eFmt Nothing           = compFormat "  " "  "
@@ -206,8 +206,8 @@ humidity (DF f) = map DF.humidity f
 pressure :: Forecast -> [Pressure]
 pressure (DF f) = map DF.pressure f
 
-wind :: Forecast -> [Maybe Wind]
-wind (DF f) = map DF.wind f
+windD :: Forecast -> [Maybe Wind]
+windD (DF f) = map DF.wind f
 
 uvi :: Forecast -> [UVI]
 uvi (DF f) = map DF.uvi f
@@ -345,6 +345,7 @@ basicFrame = Frame
           , Border Divider
           , Component weatherCondition
           , Component temperature
+          , Component windD
           , Border Bottom
           ]
     }
@@ -373,8 +374,12 @@ makeRows (C2 ts) = [Row "│" (concatWrap f) "│", Row "│" (concatWrap s) "�
   where
     (f, s) = unzip ts
 
-basicForecast :: Frame -> Int -> Forecast -> S.Text
-basicForecast frame n fs = S.unlines $ map expandRow $ concat $ map (formatRows (properties frame) n fs) (order frame)
+expandFrame :: Frame -> Int -> Forecast -> S.Text
+expandFrame frame n fs =
+    S.unlines
+  $ map expandRow
+  $ concat
+  $ map (formatRows (properties frame) n fs) (order frame)
 
 -- basicForecast :: Frame -> Int -> [DailyForecast] -> S.Text
 -- basicForecast f n df =

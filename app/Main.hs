@@ -63,7 +63,7 @@ cmdNow config _ = do
 cmdForecast :: Config -> ForecastOptions -> IO ()
 cmdForecast config opt = do
     oneCall <- getOneCall True config
-    T.putStrLn $ basicForecast basicFrame (optDays opt) $ getDailyForecast config oneCall
+    T.putStrLn $ expandFrame basicFrame (optDays opt) $ getDailyForecast config oneCall
 
 -- Calibrate Emoji widths
 cmdCalibrate :: IO ()
