@@ -97,11 +97,11 @@ instance Show WeatherCondition where
         Smoke        -> "Smoke"
 
 instance Show Temperature where
-    show temperature = te temperature
+    show t = show' t
       where
-        te (Kelvin t)     = f t "K"
-        te (Celsius t)    = f t "°C"
-        te (Fahrenheit t) = f t "°F"
+        show' (Kelvin te)     = f te "K"
+        show' (Celsius te)    = f te "°C"
+        show' (Fahrenheit te) = f te "°F"
         f x u = show (round x :: Integer) <> u
 
 instance Show Speed where
@@ -299,7 +299,7 @@ instance ToJSON Alert
 data DailyForecast = DailyForecast
     { time         :: UTCTime
     , condition    :: Maybe WeatherCondition
-    , temperatures :: (Temperature, Temperature)
+    , temperature  :: (Temperature, Temperature)
     , humidity     :: Humidity
     , pressure     :: Pressure
     , wind         :: Maybe Wind

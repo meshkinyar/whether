@@ -15,15 +15,15 @@ import Formatting
 import qualified Types as D (Daily(dt, pressure, weather, d_temp, uvi, d_rain, d_snow, humidity, wind_speed, wind_deg), DailyTemp(max, min))
 import qualified Types as C (Current(temp, humidity, weather))
 import qualified Types as CW (CurrentWeather(temp, cond, rH, moon))
-import qualified Types as DF (DailyForecast(time, condition, temperatures, humidity, pressure, wind, uvi, rain, snow))
+import qualified Types as DF (DailyForecast(time, condition, temperature, humidity, pressure, wind, uvi, rain, snow))
 import qualified Data.Text as S ( Text, pack, unpack, show, intercalate, replicate, length, unlines )
 
 data DTStyle = DayStyle DayStyle
 
 data DayStyle = DayAbbr | DateDash
 
-data Element = Border Border |
-               forall a. (Component a) => Component (Forecast -> [a])
+data Element = Border Border
+             | forall a. (Component a) => Component (Forecast -> [a])
 
 data Border = Top
             | Divider
@@ -66,7 +66,7 @@ class Symbol a where
 instance Symbol StaticIcon where
     symbol ico = case ico of
         TemperatureIcon  -> "🌡️"
-        HumidityIcon     -> "🌢"
+        HumidityIcon     -> "🌢 "
         UVIIcon          -> "☼"
         TriangleUpIcon   -> "▲"
         TriangleDownIcon -> "▼"
@@ -79,7 +79,7 @@ instance Symbol CardinalDirection where
         West      -> "← "
         East      -> "→ "
         SouthWest -> "↙ "
-        South     -> "↓ "
+        South     -> " ↓"
         SouthEast -> "↘ "
 
 instance Symbol WeatherCondition where
@@ -133,10 +133,10 @@ class Component a where
 instance Component (UTCTime) where
     displayB fp ts = C1 $ map bFmt ts
       where
-        bFmt t = basicFormat fp " " (fDate (dtStyle fp) t)
+        bFmt t = dateFormat (dtStyle fp) (colWidth fp) t
     displayE fp ts = C1 $ map eFmt ts
       where
-        eFmt t = basicFormat fp " " (fDate (dtStyle fp) t)
+        eFmt t = dateFormat (dtStyle fp) (colWidth fp) t    
 
 instance Component (Maybe WeatherCondition) where
     displayB fp wcs = C1 $ map bFmt wcs
@@ -144,7 +144,7 @@ instance Component (Maybe WeatherCondition) where
         bFmt wc = basicFormat fp "  " $ maybe "  " fSymbol wc
     displayE fp wcs = C1 $ map eFmt wcs
       where
-        eFmt wc = compFormat (glyph $ contentStyle fp) (S.show wc)
+        eFmt wc = expandedFormat fp (glyph $ contentStyle fp) (maybe "  " S.show wc)
           where
             glyph Symbolic = maybe "  " fSymbol wc
             glyph Textual  = "WF"
@@ -156,7 +156,7 @@ instance Component (Temperature, Temperature) where
         f ico t = basicFormat fp ico (S.show t <> " ")
     displayE fp lhs = C1 $ map eFmt lhs
       where
-        eFmt (l, h) = compFormat (glyph $ contentStyle fp) (S.show l <> " - " <> S.show h)
+        eFmt (l, h) = expandedFormat fp (glyph $ contentStyle fp) (S.show l <> " - " <> S.show h)
         glyph Symbolic = fSymbol TemperatureIcon
         glyph Textual  = "T "
 
@@ -166,7 +166,7 @@ instance Component Humidity where
         bFmt (Humidity rh _) = basicFormat fp "  " $ S.show rh
     displayE fp hs = C1 $ map eFmt hs
       where
-        eFmt (Humidity rh t) = compFormat (fSymbol HumidityIcon) $ S.show rh <> hiIndicator <> " " <> (S.show $ hiDiff t)
+        eFmt (Humidity rh t) = expandedFormat fp (fSymbol HumidityIcon) $ (S.show rh <> "% ") <> hiIndicator <> " " <> (S.show $ hiDiff t)
           where
             hi        = toHeatIndex t rh
             hiDiff t' = liftT2 (-) t' t
@@ -180,51 +180,58 @@ instance Component Humidity where
 instance Component (Maybe Wind) where
     displayB fp ws = C1 $ map bFmt ws
       where
-        bFmt w = basicFormat fp " " $ maybe "  " (\(Wind _ s) -> S.show s) w
+        bFmt w = basicFormat fp " " $ maybe "  " (\(Wind _ s) -> bShow s) w
+        bShow (MilesPerHour s)    = f s "mph"
+        bShow (MetresPerSecond s) = f s "m/s"
+        f x u = S.show (round x :: Integer) <> u
     displayE fp ws = C1 $ map eFmt ws
       where
-        eFmt Nothing           = compFormat "  " "  "
-        eFmt (Just (Wind d s)) = compFormat (glyph d) (S.show s)
+        eFmt Nothing           = expandedFormat fp "  " "  "
+        eFmt (Just (Wind d s)) = expandedFormat fp (glyph d) (S.show s)
         glyph = case (contentStyle fp) of
             Symbolic -> fSymbol
             Textual  -> S.show
 
--- Field Accessors
+-- Component field Accessors
 
-timeDisplay :: Forecast -> [UTCTime]
-timeDisplay (DF f) = map DF.time f
+times :: Forecast -> [UTCTime]
+times (DF f) = map DF.time f
 
-weatherCondition :: Forecast -> [Maybe WeatherCondition]
-weatherCondition (DF f) = map DF.condition f
+conditions :: Forecast -> [Maybe WeatherCondition]
+conditions (DF f) = map DF.condition f
 
-temperature :: Forecast -> [(Temperature, Temperature)]
-temperature (DF f) = map DF.temperatures f
+temperatures :: Forecast -> [(Temperature, Temperature)]
+temperatures (DF f) = map DF.temperature f
 
-humidity :: Forecast -> [Humidity]
-humidity (DF f) = map DF.humidity f
+humidities :: Forecast -> [Humidity]
+humidities (DF f) = map DF.humidity f
 
-pressure :: Forecast -> [Pressure]
-pressure (DF f) = map DF.pressure f
+pressures :: Forecast -> [Pressure]
+pressures (DF f) = map DF.pressure f
 
-windD :: Forecast -> [Maybe Wind]
-windD (DF f) = map DF.wind f
+winds :: Forecast -> [Maybe Wind]
+winds (DF f) = map DF.wind f
 
-uvi :: Forecast -> [UVI]
-uvi (DF f) = map DF.uvi f
+uvis :: Forecast -> [UVI]
+uvis (DF f) = map DF.uvi f
 
-rain :: Forecast -> [Maybe Precipitation]
-rain (DF f) = map DF.rain f
+rains :: Forecast -> [Maybe Precipitation]
+rains (DF f) = map DF.rain f
 
-snow :: Forecast -> [Maybe Precipitation]
-snow (DF f) = map DF.snow f
+snows :: Forecast -> [Maybe Precipitation]
+snows (DF f) = map DF.snow f
 
 fSymbol :: (Symbol a) => a -> S.Text
 fSymbol t = padChar $ symbol t
 
-fDate :: (FormatTime a) => DTStyle -> a -> S.Text
-fDate s date = S.pack $
-    formatTime defaultTimeLocale (fstr s) date
+dateFormat :: (FormatTime a) => DTStyle -> Int -> a -> S.Text
+dateFormat s w date = sformat (stext % stext % stext) l c r
   where
+    c                        = S.pack $ formatTime defaultTimeLocale (fstr s) date
+    (l, r)                   = (S.replicate s1 " ", S.replicate s2 " ") 
+    s1                       = padLength `div` 2
+    s2                       = s1 + padLength `mod` 2
+    padLength                = w - S.length c
     fstr (DayStyle DayAbbr)  = " %a "
     fstr (DayStyle DateDash) = "%m-%d"
 
@@ -260,8 +267,8 @@ borderRow st btype w n = Row l m r
 --   where
 --     body = concatWrap $ map formatter li
 
-expandRow :: Row -> S.Text
-expandRow (Row x y z) = sformat (stext % stext % stext) x y z
+unwrapRow :: Row -> S.Text
+unwrapRow (Row x y z) = sformat (stext % stext % stext) x y z
         
 basicFormat :: FrameProperties -> S.Text -> S.Text -> S.Text
 basicFormat fp icoL t = sformat (" " % stext % stext % stext) icoL t padR
@@ -269,8 +276,11 @@ basicFormat fp icoL t = sformat (" " % stext % stext % stext) icoL t padR
     padR = S.replicate lenR " "
     lenR = (colWidth fp) - S.length t - S.length icoL - 1
 
-compFormat :: S.Text -> S.Text -> S.Text
-compFormat = sformat (" " % stext % "  " % stext % " ")
+expandedFormat :: FrameProperties -> S.Text -> S.Text -> S.Text
+expandedFormat fp x y = sformat (" " % stext % " " % stext % stext) x y padR
+  where
+    padR = S.replicate lenR " "
+    lenR = (colWidth fp) - S.length y - S.length x - 2
 
 getWeatherCondition :: Bool -> [Weather] -> Maybe WeatherCondition
 getWeatherCondition y (x:_) = toWeatherCondition y $ weather_id x
@@ -283,7 +293,7 @@ getDailyForecast config oneCall = DF $
         newDF d = DailyForecast
           { time         = posixSecondsToUTCTime $ D.dt d
           , condition    = getWeatherCondition True $ D.weather d
-          , temperatures = (t D.min, t D.max)
+          , temperature  = (t D.min, t D.max)
           , humidity     = Humidity (D.humidity d) avgT
           , pressure     = D.pressure d
           , wind         = windF $ D.wind_deg d
@@ -341,11 +351,35 @@ basicFrame = Frame
     , order      =
           [
             Border Top
-          , Component timeDisplay
+          , Component times
           , Border Divider
-          , Component weatherCondition
-          , Component temperature
-          , Component windD
+          , Component conditions
+          , Component temperatures
+          , Component winds
+          , Border Bottom
+          ]
+    }
+
+expandedFrame :: Frame
+expandedFrame = Frame
+    {
+      properties = FrameProperties
+          {
+            lineStyle    = Rounded
+          , dtStyle      = DayStyle DayAbbr
+          , contentStyle = Symbolic
+          , colWidth     = 19
+          , mode         = Expanded
+          }
+    , order      =
+          [
+            Border Top
+          , Component times 
+          , Border Divider
+          , Component conditions
+          , Component temperatures
+          , Component winds
+          , Component humidities
           , Border Bottom
           ]
     }
@@ -374,33 +408,9 @@ makeRows (C2 ts) = [Row "│" (concatWrap f) "│", Row "│" (concatWrap s) "�
   where
     (f, s) = unzip ts
 
-expandFrame :: Frame -> Int -> Forecast -> S.Text
-expandFrame frame n fs =
+makeFrame :: Frame -> Int -> Forecast -> S.Text
+makeFrame frame n fs =
     S.unlines
-  $ map expandRow
+  $ map unwrapRow
   $ concat
   $ map (formatRows (properties frame) n fs) (order frame)
-
--- basicForecast :: Frame -> Int -> [DailyForecast] -> S.Text
--- basicForecast f n df =
---     S.unlines $ map
-
--- basicForecast' :: Int -> [DailyForecast] -> S.Text
--- basicForecast' n df =
---     S.unlines $ map expandRow
---         [
---           border Top
---         , dateStr
---         , border Divider
---         , condition 
---         , temperature snd
---         , temperature fst
---         , border Bottom
---         ]
---     where
---       border bt = borderRow Rounded bt 9 n 
---       days = take n df
---       condition = contentRow (displayE Symbolic . DF.cond) days
---       temperature f = contentRow (f . displayB . temps) days
---       dateStr = contentRow (miniDate DayAbbr . time) days
---

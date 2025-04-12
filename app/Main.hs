@@ -24,6 +24,8 @@ import Conversions
 import Display
 import Options
 import Options.Applicative
+import qualified Options as Forecast       ( ForecastOptions(optStyle) )
+-- import qualified Options as Now            ( NowOptions(optStyle) )
 import qualified Data.Text.IO as T         ( putStr, putStrLn )
 import qualified Data.ByteString.Lazy as L ( ByteString )
 
@@ -63,7 +65,11 @@ cmdNow config _ = do
 cmdForecast :: Config -> ForecastOptions -> IO ()
 cmdForecast config opt = do
     oneCall <- getOneCall True config
-    T.putStrLn $ expandFrame basicFrame (optDays opt) $ getDailyForecast config oneCall
+    T.putStrLn $ makeFrame frame (optDays opt) $ getDailyForecast config oneCall
+      where
+        frame = case (Forecast.optStyle opt) of
+            BasicOption    -> basicFrame
+            ExpandedOption -> expandedFrame
 
 -- Calibrate Emoji widths
 cmdCalibrate :: IO ()

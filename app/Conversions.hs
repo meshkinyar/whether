@@ -154,13 +154,13 @@ toPressureLevel p
 
 -- Formula: https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml
 toHeatIndex :: Temperature -> Integer -> Temperature
-toHeatIndex temperature rhI = out
+toHeatIndex te rhI = out
   where
-    out = case temperature of
+    out = case te of
         Fahrenheit _  -> finalHI
         Celsius    _  -> toCelsius finalHI
         Kelvin     _  -> toKelvin finalHI
-    finalHI = heatIndex (toFahrenheit temperature)
+    finalHI = heatIndex (toFahrenheit te)
     heatIndex (Fahrenheit t)
         | adjHI < 80 = Fahrenheit $ 0.5 * (t + 61 + ((t - 68) * 1.2) + (rh * 0.094))
         | otherwise  = Fahrenheit adjHI
