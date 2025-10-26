@@ -65,19 +65,20 @@ executable whether
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules: Types, Display, Conversions, Options, Component
+    other-modules: Types, Display, Conversions, Options, Component, Formatters
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
     build-depends:
-        , base ^>=4.19.1.0
+        , base ^>=4.21.0.0
         , time
         , ix
         , bytestring
         , http-conduit
         , text ^>=2.1.2
+        , text-builder-linear
         , scientific
         , binary
         , aeson

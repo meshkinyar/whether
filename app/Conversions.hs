@@ -73,8 +73,8 @@ toMoonPhase x
     | otherwise                = Nothing
 
 -- Convert the OWM weather condition code to a defined type
-toWeatherCondition :: Bool -> Integer -> Maybe WeatherCondition
-toWeatherCondition isDay x
+toWeatherCondition :: Integer -> Maybe WeatherCondition
+toWeatherCondition x
     |  inRange  (200, 299) x  = Just Thunderstorm
     |  inRange  (300, 399) x
     || inRange  (502, 599) x  = Just Rain
@@ -86,8 +86,7 @@ toWeatherCondition isDay x
                  751, 761]    = Just Haze
     |  x == 741               = Just Fog
     |  x == 781               = Just Tornado
-    |  x == 800 && isDay      = Just ClearDay
-    |  x == 800               = Just ClearNight
+    |  x == 800               = Just Clear
     |  x == 801               = Just PartlyCloudy
     |  x `elem` [802, 803]    = Just MostlyCloudy
     |  x == 804               = Just Cloudy
@@ -112,15 +111,6 @@ toCardinalDirection x
     |  inRange(248, 292) x = Just West
     |  inRange(293, 337) x = Just NorthWest
     |  otherwise           = Nothing
-
-toUVIDescription :: Double -> String
-toUVIDescription x 
-    | 0    <= x && x < 2.5  = "Low"
-    | 2.5  <= x && x < 5.5  = "Moderate"
-    | 5.5  <= x && x < 7.5  = "High"
-    | 7.5  <= x && x < 10.5 = "Very High"
-    | 10.5 <= x             = "Extreme"
-    | otherwise             = "(Out of Range)"
 
 -- Check whether the time of day is between sunrise and sunset
 isDayCurrent :: Current -> Bool
@@ -153,7 +143,7 @@ toPressureLevel p
     | otherwise = NormalPressure
 
 -- Formula: https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml
-toHeatIndex :: Temperature -> Integer -> Temperature
+toHeatIndex :: Temperature -> RelativeHumidity -> Temperature
 toHeatIndex te rhI = out
   where
     out = case te of
@@ -171,6 +161,6 @@ toHeatIndex te rhI = out
                 | rh < 0.13 && t > 80 && t < 112 = hi - ((13 - rh) / 4) * sqrt ((17 - (abs (t - 95))) / 17)
                 | rh > 0.85 && t > 80 && t < 87 = hi + ((rh - 85) / 10) * ((87 - t) / 5)
                 | otherwise = hi
-    heatIndex _ = error "heatIndex is not implemented for Celsius or Kelvin"
+    heatIndex _ = error "heatIndex is not directly implemented for Celsius or Kelvin"
 
 

@@ -15,11 +15,12 @@ import Text.Read                           ( readMaybe )
 import Formatting
 import Text.Casing                         ( pascal )
 import System.Posix.Files                  ( getFileStatus, modificationTime )
-import System.Directory                    ( XdgDirectory( XdgConfig, XdgCache, XdgState ), getXdgDirectory, createDirectoryIfMissing, doesFileExist )
 import System.FilePath                     ( takeDirectory, (</>) )
+import System.Directory                    ( XdgDirectory( XdgConfig, XdgCache, XdgState ), getXdgDirectory, createDirectoryIfMissing, doesFileExist )
 import System.IO
 
 import Types
+import Formatters
 import Conversions
 import Display
 import Options
@@ -150,8 +151,8 @@ getLocation cfg = do
 
 -- Call an OWM API
 callAPI :: Text -> Request -> IO L.ByteString
-callAPI key requestName = do
-    let r = addToRequestQueryString [("appid", Just $ encodeUtf8 key)] requestName
+callAPI key request = do
+    let r = addToRequestQueryString [("appid", Just $ encodeUtf8 key)] request
     response <- httpLBS r
     return ( getResponseBody response )
 
@@ -161,7 +162,7 @@ cacheJSON :: (ToJSON a) => FilePath -> a -> IO ()
 cacheJSON filename obj = do
     cachePath <- getXdgDirectory XdgCache "whether"
     createDirectoryIfMissing True $ takeDirectory cachePath
-    encodeFile (cachePath </> filename) obj
+    encodeFile (show (cachePath </> filename)) obj
 
 -- Get cached JSON from filename
 getJSONCache :: (FromJSON a) => FilePath -> IO (Maybe a)
@@ -169,22 +170,23 @@ getJSONCache filename = do
     cachePath <- getXdgDirectory XdgCache "whether"
     exists    <- doesFileExist cachePath
     if exists
-    then decodeFileStrict $ cachePath </> filename
+    then decodeFileStrict . show $ cachePath </> filename
     else return Nothing
 
 -- CLI to create a config if it doesn't already exist
 createConfig :: FilePath -> IO ()
 createConfig path = do
+    let path' = show path
     hSetBuffering stdout NoBuffering
-    putStrLn  $ "No config.json found, creating new config.json at" ++ path
+    putStrLn  $ "No config.json found, creating new config.json at" ++ path'
     putStr      "Please enter the name of your location: "
     newLoc    <- getLine
     putStr      "Please enter your API Key: "
     newApiKey <- getLine
     newUnits <- validateInput Metric
                 "Please choose a unit system"
-    createDirectoryIfMissing True $ takeDirectory path
-    encodeFile path $ newConfig (newApiKey, newLoc, newUnits)
+    createDirectoryIfMissing True $ takeDirectory $ path
+    encodeFile path' $ newConfig (newApiKey, newLoc, newUnits)
 
 -- IO Helpers --
 

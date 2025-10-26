@@ -79,7 +79,7 @@ pCalibrate = pure Calibrate
 ---- Common ----
 pStyle :: Parser ForecastStyle
 pStyle = flag BasicOption ExpandedOption
-    (  long  "complete" 
+    (  long  "expanded" 
     <> short 'e'
     <> help  "Print an expanded forecast"
     )

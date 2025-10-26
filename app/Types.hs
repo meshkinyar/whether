@@ -43,7 +43,7 @@ data MoonPhase = NewMoon  | WaxingCrescent | FirstQuarter | WaxingGibbous
     deriving Generic
 
 -- Weather Conditions with Unicode Representations
-data WeatherCondition = ClearDay | ClearNight
+data WeatherCondition = Clear
                       | Cloudy   | MostlyCloudy | PartlyCloudy
                       | Rain     | RainPartial  | Thunderstorm | Tornado
                       | Fog      | Mist         | Haze         | Smoke 
@@ -57,59 +57,12 @@ type RelativeHumidity = Integer
 type Pressure = Integer
 type UVI = Double
 
-data Humidity = Humidity RelativeHumidity Temperature
-
 data Wind = Wind CardinalDirection Speed
     deriving Generic
 
 data PressureLevel = HighPressure | NormalPressure | LowPressure
 
 instance FromJSON WeatherCondition
-
-instance Show MoonPhase where
-    show phase = case phase of
-        NewMoon        -> "New Moon"
-        WaxingCrescent -> "Waxing Crescent"
-        FirstQuarter   -> "First Quarter"
-        WaxingGibbous  -> "Waxing Gibbous"
-        FullMoon       -> "Full Moon"
-        WaningGibbous  -> "Waning Gibbous"
-        LastQuarter    -> "Third Quarter"
-        WaningCrescent -> "Waning Crescent"
-
-
-instance Show WeatherCondition where
-    show c = case c of
-        ClearDay     -> "Clear"
-        ClearNight   -> "Clear"
-        Cloudy       -> "Cloudy"
-        PartlyCloudy -> "Partly Cloudy"
-        MostlyCloudy -> "Mostly Cloudy"
-        Rain         -> "Rain"
-        RainPartial  -> "Partial Rain"
-        Thunderstorm -> "Thunderstorm"
-        Tornado      -> "Tornado"
-        Snow         -> "Snow"
-        Sleet        -> "Sleet"
-        Fog          -> "Fog"
-        Mist         -> "Mist"
-        Haze         -> "Haze"
-        Smoke        -> "Smoke"
-
-instance Show Temperature where
-    show t = show' t
-      where
-        show' (Kelvin te)     = f te "K"
-        show' (Celsius te)    = f te "°C"
-        show' (Fahrenheit te) = f te "°F"
-        f x u = show (round x :: Integer) <> u
-
-instance Show Speed where
-    show speed = sp speed
-      where
-        sp (MilesPerHour s)    = f s "mph"
-        sp (MetresPerSecond s) = f s "m/s"
-        f x u = show (round x :: Integer) <> " " <> u
 
 type Coordinates = (Double, Double)
 
@@ -298,9 +251,11 @@ instance ToJSON Alert
 
 data DailyForecast = DailyForecast
     { time         :: UTCTime
+    , sunset       :: UTCTime
+    , sunrise      :: UTCTime
     , condition    :: Maybe WeatherCondition
     , temperature  :: (Temperature, Temperature)
-    , humidity     :: Humidity
+    , humidity     :: RelativeHumidity
     , pressure     :: Pressure
     , wind         :: Maybe Wind
     , uvi          :: UVI
@@ -309,12 +264,11 @@ data DailyForecast = DailyForecast
     }
 
 data CurrentWeather = CurrentWeather
-    { cond :: Maybe WeatherCondition
-    , temp :: Temperature
-    , rH   :: RelativeHumidity
-    , moon :: Maybe MoonPhase
+    { condition   :: Maybe WeatherCondition
+    , temperature :: Temperature
+    , humidity    :: RelativeHumidity
+    , moon        :: Maybe MoonPhase
     }
-
 
 -- Label Functions
 
