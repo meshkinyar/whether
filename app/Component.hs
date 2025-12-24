@@ -18,7 +18,7 @@ data FrameParameters = FrameParameters
     , style       :: FrameStyle
     }
 
-data ComponentOptions = ComponentOptions
+newtype ComponentOptions = ComponentOptions
     { 
       displayType :: DisplayType
     }

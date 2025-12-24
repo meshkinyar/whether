@@ -85,7 +85,6 @@ executable whether
         , directory
         , filepath
         , casing
-        , char-boxdrawing
         , unix
         , formatting
         , optparse-applicative

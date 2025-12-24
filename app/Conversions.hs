@@ -144,7 +144,7 @@ toPressureLevel p
 
 -- Formula: https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml
 toHeatIndex :: Temperature -> RelativeHumidity -> Temperature
-toHeatIndex te rhI = out
+toHeatIndex te (RelativeHumidity rhI) = out
   where
     out = case te of
         Fahrenheit _  -> finalHI
@@ -158,9 +158,7 @@ toHeatIndex te rhI = out
             rh = fromIntegral rhI
             hi = -42.379 + 2.04901523*t + 10.14333127*rh - 0.22475541*t*rh - 0.00683783*t*t - 0.05481717*rh*rh + 0.00122874*t*t*rh + 0.00085282*t*rh*rh - 0.00000199*t*t*rh*rh
             adjHI
-                | rh < 0.13 && t > 80 && t < 112 = hi - ((13 - rh) / 4) * sqrt ((17 - (abs (t - 95))) / 17)
+                | rh < 0.13 && t > 80 && t < 112 = hi - ((13 - rh) / 4) * sqrt ((17 - abs (t - 95)) / 17)
                 | rh > 0.85 && t > 80 && t < 87 = hi + ((rh - 85) / 10) * ((87 - t) / 5)
                 | otherwise = hi
     heatIndex _ = error "heatIndex is not directly implemented for Celsius or Kelvin"
-
-

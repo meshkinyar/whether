@@ -2,7 +2,6 @@
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE PatternSynonyms       #-}
 
 module Types where
 
@@ -16,24 +15,12 @@ data CardinalDirection = NorthWest | North | NorthEast
                        | West              | East
                        | SouthWest | South | SouthEast
 
-instance Show CardinalDirection where
-    show d = case d of
-        NorthWest -> "Northwest"
-        North     -> "North"
-        NorthEast -> "Northeast"
-        West      -> "West"
-        East      -> "East"
-        SouthWest -> "Southwest"
-        South     -> "South"
-        SouthEast -> "Southeast"
-
--- Note: OWM only specifies precipitation in millimeters
-
 data UnitSystem = Standard | Metric | Imperial
     deriving (Generic, Read, Show)
 instance FromJSON UnitSystem
 instance ToJSON UnitSystem
 
+-- Note: OWM only specifies precipitation in millimeters
 data Precipitation = Inch Double | Millimetre Double
 
 data Speed = MilesPerHour Double | MetresPerSecond Double
@@ -53,11 +40,14 @@ data WeatherCondition = Clear
 data Temperature = Kelvin Double | Celsius Double | Fahrenheit Double
     deriving Generic
 
-type RelativeHumidity = Integer
-type Pressure = Integer
-type UVI = Double
+newtype RelativeHumidity = RelativeHumidity Integer
+newtype Pressure = Pressure Double
 
-data Wind = Wind CardinalDirection Speed
+newtype UVI = UVI Double
+  deriving Generic
+instance FromJSON UVI
+
+data WindVelocity = WindVelocity CardinalDirection Speed
     deriving Generic
 
 data PressureLevel = HighPressure | NormalPressure | LowPressure
@@ -108,12 +98,12 @@ data Current = Current
     { dt         :: POSIXTime
     , sunrise    :: POSIXTime
     , sunset     :: POSIXTime
-    , temp       :: Double
+    , c_temp       :: Double
     , feels_like :: Double
-    , pressure   :: Pressure
-    , humidity   :: RelativeHumidity
+    , pressure   :: Double
+    , humidity   :: Integer 
     , dew_point  :: Double
-    , uvi        :: UVI
+    , uvi        :: Double
     , clouds     :: Integer
     , visibility :: Maybe Integer
     , wind_speed :: Double
@@ -124,8 +114,10 @@ data Current = Current
     , snow       :: Maybe Precip1h
     }
     deriving Generic
-instance FromJSON Current
-instance ToJSON Current
+instance FromJSON Current where
+    parseJSON = genericParseJSON $ defaultOptions { fieldLabelModifier = _current }
+instance ToJSON Current where
+    toJSON = genericToJSON $ defaultOptions { fieldLabelModifier = _current }
 
 data Minutely = Minutely
     { dt            :: POSIXTime
@@ -141,10 +133,10 @@ instance ToJSON Minutely
 
 data Hourly = Hourly
     { dt         :: POSIXTime
-    , temp       :: Double
+    , h_temp     :: Double
     , feels_like :: Double
-    , pressure   :: Pressure
-    , humidity   :: RelativeHumidity
+    , pressure   :: Double
+    , humidity   :: Integer
     , dew_point  :: Double
     , uvi        :: Double
     , clouds     :: Integer
@@ -158,10 +150,12 @@ data Hourly = Hourly
     , snow       :: Maybe Precip1h
     }
     deriving Generic
-instance FromJSON Hourly
-instance ToJSON Hourly
+instance FromJSON Hourly where
+    parseJSON = genericParseJSON $ defaultOptions { fieldLabelModifier = _hourly }
+instance ToJSON Hourly where
+    toJSON = genericToJSON $ defaultOptions { fieldLabelModifier = _hourly }
 
-data Precip1h = Precip1h
+newtype Precip1h = Precip1h
     { oneH :: Double }
     deriving Generic
 
@@ -180,8 +174,8 @@ data Daily = Daily
     , summary       :: S.Text
     , d_temp        :: DailyTemp
     , d_feels_like  :: DailyFeelsLike
-    , pressure      :: Pressure
-    , humidity      :: RelativeHumidity
+    , pressure      :: Double
+    , humidity      :: Integer
     , dew_point     :: Double
     , wind_speed    :: Double
     , wind_deg      :: Integer
@@ -230,9 +224,9 @@ data Weather = Weather
     deriving Generic
 
 instance FromJSON Weather where
-    parseJSON = genericParseJSON $ defaultOptions { fieldLabelModifier = _weather }
+  parseJSON = genericParseJSON $ defaultOptions { fieldLabelModifier = _weather }
 instance ToJSON Weather where
-    toJSON = genericToJSON defaultOptions { fieldLabelModifier = _weather }
+  toJSON = genericToJSON defaultOptions { fieldLabelModifier = _weather }
 
 data Alert = Alert
     { sender_name :: S.Text
@@ -249,21 +243,22 @@ instance ToJSON Alert
 
 -- Encoding
 
-data DailyForecast = DailyForecast
-    { time         :: UTCTime
-    , sunset       :: UTCTime
-    , sunrise      :: UTCTime
-    , condition    :: Maybe WeatherCondition
-    , temperature  :: (Temperature, Temperature)
-    , humidity     :: RelativeHumidity
-    , pressure     :: Pressure
-    , wind         :: Maybe Wind
-    , uvi          :: UVI
-    , rain         :: Maybe Precipitation
-    , snow         :: Maybe Precipitation
-    }
-
-data CurrentWeather = CurrentWeather
+data Forecast =
+    DailyForecast
+    { time             :: UTCTime
+    , sunset           :: UTCTime
+    , sunrise          :: UTCTime
+    , weatherCondition :: Maybe WeatherCondition
+    , temperatureRange :: (Temperature, Temperature)
+    , humidity         :: RelativeHumidity
+    , pressure         :: Pressure
+    , windVelocity     :: Maybe WindVelocity
+    , uvIndex          :: UVI
+    , rainfall         :: Maybe Precipitation
+    , snowfall         :: Maybe Precipitation
+    , moon             :: Maybe MoonPhase
+    } 
+  | CurrentWeather
     { condition   :: Maybe WeatherCondition
     , temperature :: Temperature
     , humidity    :: RelativeHumidity
@@ -278,6 +273,14 @@ _daily "d_feels_like" = "feels_like"
 _daily "d_rain" = "rain"
 _daily "d_snow" = "snow"
 _daily x = x
+
+_hourly :: String -> String
+_hourly "h_temp" = "temp"
+_hourly x = x
+
+_current :: String -> String
+_current "c_temp" = "temp"
+_current x = x
 
 _weather :: String -> String
 _weather "weather_id" = "id"
