@@ -30,7 +30,7 @@ data Border = Top
             | Divider
             | Bottom
 
-data DisplayStyle = Basic | Expanded
+data DisplayStyle = Compact | Expanded
 
 data FrameProperties = FrameProperties
   { lineStyle    :: LineStyle
@@ -42,7 +42,7 @@ data FrameProperties = FrameProperties
 
 data Frame = Frame
   { properties :: FrameProperties
-  , order  :: [Element]
+  , order      :: [Element]
   }
 
 data Row = Row S.Text S.Text S.Text
@@ -68,49 +68,56 @@ class Symbol a where
   symbol :: a -> S.Text
 
 instance Display MoonPhase where
-  display _ phase = case phase of
-    NewMoon        -> "New Moon"
-    WaxingCrescent -> "Waxing Crescent"
-    FirstQuarter   -> "First Quarter"
-    WaxingGibbous  -> "Waxing Gibbous"
-    FullMoon       -> "Full Moon"
-    WaningGibbous  -> "Waning Gibbous"
-    LastQuarter    -> "Third Quarter"
-    WaningCrescent -> "Waning Crescent"
+  display Compact  NewMoon        = "NM"
+  display Compact  WaxingCrescent = "WXC"
+  display Compact  FirstQuarter   = "FQ"
+  display Compact  WaxingGibbous  = "WXG"
+  display Compact  FullMoon       = "FM"
+  display Compact  WaningGibbous  = "WNG"
+  display Compact  LastQuarter    = "LQ"
+  display Compact  WaningCrescent = "WNC"
+
+  display Expanded NewMoon        = "New Moon"
+  display Expanded WaxingCrescent = "Waxing Crescent"
+  display Expanded FirstQuarter   = "First Quarter"
+  display Expanded WaxingGibbous  = "Waxing Gibbous"
+  display Expanded FullMoon       = "Full Moon"
+  display Expanded WaningGibbous  = "Waning Gibbous"
+  display Expanded LastQuarter    = "Third Quarter"
+  display Expanded WaningCrescent = "Waning Crescent"
 
 instance Display WeatherCondition where
-  display _ c = case c of
-    Clear        -> "Clear"
-    -- ClearNight   -> "Clear"
-    Cloudy       -> "Cloudy"
-    PartlyCloudy -> "Partly Cloudy"
-    MostlyCloudy -> "Mostly Cloudy"
-    Rain         -> "Rain"
-    RainPartial  -> "Partial Rain"
-    Thunderstorm -> "Thunderstorm"
-    Tornado      -> "Tornado"
-    Snow         -> "Snow"
-    Sleet        -> "Sleet"
-    Fog          -> "Fog"
-    Mist         -> "Mist"
-    Haze         -> "Haze"
-    Smoke        -> "Smoke"
+  display _ Clear        = "Clear"
+  display _ Cloudy       = "Cloudy"
+  display _ PartlyCloudy = "Partly Cloudy"
+  display _ MostlyCloudy = "Mostly Cloudy"
+  display _ Rain         = "Rain"
+  display _ RainPartial  = "Partial Rain"
+  display _ Thunderstorm = "Thunderstorm"
+  display _ Tornado      = "Tornado"
+  display _ Snow         = "Snow"
+  display _ Sleet        = "Sleet"
+  display _ Fog          = "Fog"
+  display _ Mist         = "Mist"
+  display _ Haze         = "Haze"
+  display _ Smoke        = "Smoke"
 
 instance Display a => Display (Maybe a) where
-  display style c = case c of
-    Just x  -> display style x
-    Nothing -> ""
+  display style (Just x) = display style x
+  display _      Nothing = ""
 
 instance Display Temperature where
-  display Basic    (Kelvin t)     = showRound t <> " K"
+  display Compact  (Kelvin t)     = showRound t <> " K"
   display Expanded (Kelvin t)     = showRound t <> " Kelvin"
 
-  display Basic    (Celsius t)    = showRound t <> "°C"
+  display Compact  (Celsius t)    = showRound t <> "°C"
   display Expanded (Celsius t)    = showRound t <> "° Celsius"
 
-  display Basic    (Fahrenheit t) = showRound t <> "°F"
+  display Compact  (Fahrenheit t) = showRound t <> "°F"
   display Expanded (Fahrenheit t) = showRound t <> "° Farenheit"
 
+instance Display (Temperature, Temperature) where
+  display style (high, low) = display style high <> " - " <> display style low
 
 instance Display Speed where
   display _ = display'
@@ -123,7 +130,8 @@ instance Display RelativeHumidity where
   display _ (RelativeHumidity rH) = S.show rH <> "%"
 
 instance Display UVI where
-  display _ (UVI u) = S.show u <> " " <> severity
+  display Compact  (UVI u) = S.show (round u :: Integer)
+  display Expanded (UVI u) = S.show (round u :: Integer) <> " - " <> severity
     where
       severity
         | 0    <= u && u < 2.5  = "Low"
@@ -134,24 +142,23 @@ instance Display UVI where
         | otherwise             = "(Out of Range)"
 
 instance Display CardinalDirection where
-  display Basic d = case d of
-    NorthWest -> "NW"
-    North     -> "N"
-    NorthEast -> "NE"
-    West      -> "W"
-    East      -> "E"
-    SouthWest -> "SW"
-    South     -> "S"
-    SouthEast -> "SE"
-  display Expanded d = case d of
-    NorthWest -> "Northwest"
-    North     -> "North"
-    NorthEast -> "Northeast"
-    West      -> "West"
-    East      -> "East"
-    SouthWest -> "Southwest"
-    South     -> "South"
-    SouthEast -> "Southeast"
+  display Compact  NorthWest = "NW"
+  display Compact  North     = "N"
+  display Compact  NorthEast = "NE"
+  display Compact  West      = "W"
+  display Compact  East      = "E"
+  display Compact  SouthWest = "SW"
+  display Compact  South     = "S"
+  display Compact  SouthEast = "SE"
+
+  display Expanded NorthWest = "Northwest"
+  display Expanded North     = "North"
+  display Expanded NorthEast = "Northeast"
+  display Expanded West      = "West"
+  display Expanded East      = "East"
+  display Expanded SouthWest = "Southwest"
+  display Expanded South     = "South"
+  display Expanded SouthEast = "Southeast"
 
 instance Display WindVelocity where
   display style (WindVelocity dir speed) = display style dir <> display style speed
@@ -160,54 +167,52 @@ instance Display Pressure where
   display _ (Pressure p) = S.show p <> " hPa"
 
 instance Symbol StaticIcon where
-  symbol ico = case ico of
-    Thermometer       -> "🌡️"
-    DropletWide       -> "🌢"
-    SunFlat           -> "☼"
-    TriangleUp        -> "▲ "
-    TriangleDown      -> "▼ "
-    TriangleUpSmall   -> "⏶ "
-    TriangleDownSmall -> "⏷ "
+  symbol Thermometer       = "🌡️"
+  symbol DropletWide       = "🌢"
+  symbol SunFlat           = "☼"
+  symbol TriangleUp        = "▲ "
+  symbol TriangleDown      = "▼ "
+  symbol TriangleUpSmall   = "⏶ "
+  symbol TriangleDownSmall = "⏷ "
 
 instance Symbol CardinalDirection where
-  symbol dir = case dir of
-    NorthWest -> "↖ "
-    North     -> "↑ "
-    NorthEast -> "↗ "
-    West      -> "← "
-    East      -> "→ "
-    SouthWest -> "↙ "
-    South     -> " ↓"
-    SouthEast -> "↘ "
+  symbol NorthWest = "↖ "
+  symbol North     = "↑ "
+  symbol NorthEast = "↗ "
+  symbol West      = "← "
+  symbol East      = "→ "
+  symbol SouthWest = "↙ "
+  symbol South     = " ↓"
+  symbol SouthEast = "↘ "
+
+instance Symbol WindVelocity where
+  symbol (WindVelocity dir _) = symbol dir
 
 instance Symbol WeatherCondition where
-  symbol c = case c of
-    Clear        -> "☀️ "
-    --  ClearNight   -> "✨"
-    Cloudy       -> "☁ "
-    PartlyCloudy -> "🌤️"
-    MostlyCloudy -> "🌥️"
-    Rain         -> "🌧️"
-    RainPartial  -> "🌦️"
-    Thunderstorm -> "⛈️"
-    Tornado      -> "🌪️"
-    Snow         -> "❄️"
-    Sleet        -> "🌨️"
-    Fog          -> "🌫️"
-    Mist         -> "🌁"
-    Haze         -> "≋≋"
-    Smoke        -> "🔥"
+  symbol Clear        = "☀️ "
+  symbol Cloudy       = "☁ "
+  symbol PartlyCloudy = "🌤️"
+  symbol MostlyCloudy = "🌥️"
+  symbol Rain         = "🌧️"
+  symbol RainPartial  = "🌦️"
+  symbol Thunderstorm = "⛈️"
+  symbol Tornado      = "🌪️"
+  symbol Snow         = "❄️"
+  symbol Sleet        = "🌨️"
+  symbol Fog          = "🌫️"
+  symbol Mist         = "🌁"
+  symbol Haze         = "≋≋"
+  symbol Smoke        = "🔥"
 
 instance Symbol MoonPhase where
-  symbol phase = case phase of
-    NewMoon        -> "🌑"
-    WaxingCrescent -> "🌒"
-    FirstQuarter   -> "🌓"
-    WaxingGibbous  -> "🌔"
-    FullMoon       -> "🌕"
-    WaningGibbous  -> "🌖"
-    LastQuarter    -> "🌗"
-    WaningCrescent -> "🌘"
+  symbol NewMoon        = "🌑"
+  symbol WaxingCrescent = "🌒"
+  symbol FirstQuarter   = "🌓"
+  symbol WaxingGibbous  = "🌔"
+  symbol FullMoon       = "🌕"
+  symbol WaningGibbous  = "🌖"
+  symbol LastQuarter    = "🌗"
+  symbol WaningCrescent = "🌘"
 
 instance Symbol a => Symbol (Maybe a) where
   symbol Nothing  = ""
@@ -243,7 +248,7 @@ instance Component' UTCTime where
 instance Component' (Maybe WeatherCondition) where
   displayB fp wcs = C1 $ map bFmt wcs
     where
-      bFmt wc = basicFormat fp "  " $ maybe "  " fSymbol wc
+      bFmt wc = compactFormat fp "  " $ maybe "  " fSymbol wc
   displayE fp wcs = C1 $ map eFmt wcs
     where
       eFmt wc = expandedFormat fp (glyph $ contentStyle fp) (maybe "  " (display Expanded) wc)
@@ -255,7 +260,7 @@ instance Component' (Temperature, Temperature) where
   displayB fp lhs = C2 $ map bFmt lhs
     where
       bFmt (l, h) = (f "⏶ " h, f "⏷ " l)
-      f ico t = basicFormat fp ico (display Basic t <> " ")
+      f ico t = compactFormat fp ico (display Compact t <> " ")
   displayE fp lhs = C1 $ map eFmt lhs
     where
       eFmt (l, h) = expandedFormat fp (glyph $ contentStyle fp) (display Expanded l <> " - " <> display Expanded h)
@@ -265,7 +270,7 @@ instance Component' (Temperature, Temperature) where
 -- instance Component' RelativeHumidity where
 --   displayB fp hs = C1 $ map bFmt hs
 --   where
---   bFmt rh = basicFormat fp "  " $ S.show rh
+--   bFmt rh = CompactFormat fp "  " $ S.show rh
 --   displayE fp hs = C1 $ map eFmt hs
 --   where
 --   eFmt rh t = expandedFormat fp (fSymbol DropletWide) $ (S.show rh <> "% ") <> hiIndicator <> " " <> (S.show $ hiDiff t)
@@ -282,17 +287,17 @@ instance Component' (Temperature, Temperature) where
 instance Component' (Maybe WindVelocity) where
   displayB fp ws = C1 $ map bFmt ws
     where
-      bFmt w = basicFormat fp " " $ maybe "  " (\(WindVelocity _ s) -> bShow s) w
+      bFmt w = compactFormat fp " " $ maybe "  " (\(WindVelocity _ s) -> bShow s) w
       bShow (MilesPerHour s)  = f s "mph"
       bShow (MetresPerSecond s) = f s "m/s"
       f x u = S.show (round x :: Integer) <> u
   displayE fp ws = C1 $ map eFmt ws
     where
       eFmt Nothing     = expandedFormat fp "  " "  "
-      eFmt (Just (WindVelocity d s)) = expandedFormat fp (glyph d) (display Basic s)
+      eFmt (Just (WindVelocity d s)) = expandedFormat fp (glyph d) (display Compact s)
       glyph = case contentStyle fp of
         Symbolic -> fSymbol
-        Textual  -> display Basic
+        Textual  -> display Compact
 
 -- data Fragment = Static S.Text
 --     | Dynamic (Forecast' -> S.Text)
@@ -362,8 +367,8 @@ borderRow st btype w n = Row l m r
 unwrapRow :: Row -> S.Text
 unwrapRow (Row x y z) = sformat (stext % stext % stext) x y z
   
-basicFormat :: FrameProperties -> S.Text -> S.Text -> S.Text
-basicFormat fp icoL t = sformat (" " % stext % stext % stext) icoL t padR
+compactFormat :: FrameProperties -> S.Text -> S.Text -> S.Text
+compactFormat fp icoL t = sformat (" " % stext % stext % stext) icoL t padR
   where
   padR = S.replicate lenR " "
   lenR = colWidth fp - S.length t - S.length icoL - 1
@@ -375,53 +380,50 @@ expandedFormat fp x y = sformat (" " % stext % " " % stext % stext) x y padR
   lenR = colWidth fp - S.length y - S.length x - 2
 
 getWeatherCondition :: [Weather] -> Maybe WeatherCondition
-getWeatherCondition (x:_) = toWeatherCondition $ weather_id x
+getWeatherCondition (x:_) = toWeatherCondition $ x ^. id
 getWeatherCondition [] = Nothing
 
-getDailyForecast :: Config -> OneCallRoot -> [Forecast]
-getDailyForecast config oneCall =
-  map newDF $ daily oneCall
-    where
-      newDF d = DailyForecast
-        { time              = toUTCTime D.dt
-        , sunrise           = toUTCTime D.sunrise
-        , sunset            = toUTCTime D.sunset
-        , weatherCondition  = getWeatherCondition $ D.weather d
-        , temperatureRange  = (toTemp D.min, toTemp D.max)
-        , humidity          = RelativeHumidity $ D.humidity d
-        , pressure          = Pressure $ D.pressure d
-        , windVelocity      = windF $ D.wind_deg d
-        , uvIndex           = UVI $ D.uvi d
-        , rainfall          = toPrecip D.d_rain
-        , snowfall          = toPrecip D.d_snow
-        , moon              = toMoonPhase $ moon_phase d
-        }
-        where
-          toUTCTime f = posixSecondsToUTCTime $ f d
-          units = unitSystem config
-          toTemp f = toTemperature units (f $ D.d_temp d)
-          toPrecip f = do
-            p <- f d
-            return (toPrecipitation units p)
-          windF direction = do
-            dir <- toCardinalDirection direction
-            return $ WindVelocity dir (toSpeed units (D.wind_speed d))
+newDailyForecast :: UnitSystem -> Daily -> Forecast
+newDailyForecast units d = DailyForecast
+  { time             = toUTCTime D.dt
+  , sunrise          = toUTCTime D.sunrise
+  , sunset           = toUTCTime D.sunset
+  , weatherCondition = getWeatherCondition $ D.weather d
+  , temperatureHigh  = toTemp D.min
+  , temperatureLow   = toTemp D.max
+  , humidity         = RelativeHumidity $ D.humidity d
+  , pressure         = Pressure $ D.pressure d
+  , windVelocity     = windF $ D.wind_deg d
+  , uvIndex          = UVI $ D.uvi d
+  , rainfall         = toPrecip D.d_rain
+  , snowfall         = toPrecip D.d_snow
+  , moon             = toMoonPhase $ moon_phase d
+  }
+  where
+    toUTCTime fa = posixSecondsToUTCTime $ fa d
+    toTemp fa = toTemperature units (fa $ D.d_temp d)
+    toPrecip fa = do
+      precip <- fa d
+      return (toPrecipitation units precip)
+    windF direction = do
+      dir <- toCardinalDirection direction
+      return $ WindVelocity dir (toSpeed units (D.wind_speed d))
 
 getCurrentWeather :: Config -> OneCallRoot -> Forecast
 getCurrentWeather config oneCall = CurrentWeather
-  { condition   = getWeatherCondition $ C.weather $ current oneCall
-  , temperature = toTemperature (unitSystem config) (c_temp $ current oneCall)
-  , humidity  = RelativeHumidity $ C.humidity $ current oneCall
-  , moon  = case daily oneCall of
-    x:_ -> toMoonPhase $ moon_phase x
-    []  -> Nothing
+  { weatherCondition = getWeatherCondition $ C.weather $ current oneCall
+  , temperature      = toTemperature (unitSystem config) (c_temp $ current oneCall)
+  , humidity         = RelativeHumidity $ C.humidity $ current oneCall
+  , moon             = case daily oneCall of
+      x:_ -> toMoonPhase $ moon_phase x
+      []  -> Nothing
   }
 
 -- Formatters
 
 statusString :: Forecast -> S.Text
-statusString CurrentWeather{condition, temperature, humidity, moon} =
-  sformat fStr (fSymbol condition) (display Basic temperature) (display Basic humidity) (fSymbol moon)
+statusString CurrentWeather{weatherCondition, temperature, humidity, moon} =
+  sformat fStr (fSymbol weatherCondition) (display Compact temperature) (display Compact humidity) (fSymbol moon)
   where
   fStr  = stext % stext % " 🌢  " % stext % "% " % stext
 statusString DailyForecast{} = undefined

@@ -1,23 +1,29 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE NamedFieldPuns    #-}
 
-module Formatters where
+module Whether.Formatters where
 
-import Types
-import Display
+import Data.Time.Format
+import Formatting.Time
 import Formatting.Internal
 import qualified Data.Text.Lazy.Builder as T
 import qualified Data.Text as S
 
-disp :: (Display a) => a -> S.Text
-disp = display Compact
+import Whether.Weather
+import Whether.Display
 
-dynamic :: (Forecast -> a) -> (a -> S.Text) -> Format r (Forecast -> r)
-dynamic field fmt = later $ T.fromText . fmt . field
+-- | Base function for formatters that display data from a @(Forecast).
+dynamic :: (a -> S.Text) -> (Forecast -> a) -> Format r (Forecast -> r)
+dynamic fmt field = later $ T.fromText . fmt . field
 
+-- | Base function for formatters that display output that only depends on the
+-- provided formatting function.
 static :: S.Text -> Format r r
 static fmt = now $ T.fromText fmt
+
+-- | Convenience method for dynamic formatters with a simple formatting function.
+dynamicDisplay :: (Display a) => DisplayStyle -> (Forecast -> a) -> Format r (Forecast -> r)
+dynamicDisplay style field = later $ T.fromText . display style . field
 
 -- | Applies the left and right formatters to the same data argument, appending
 -- their results with a space. This is just @(<%+>) from Formatting, but with
@@ -60,113 +66,92 @@ infixr 7 %+>
 -- | Dynamic indicator for @WeatherCondition@.
 -- Displays "WC" if Textual, and an emoji representing the weather if Symbolic.
 wc :: ContentStyle -> Format r (Forecast -> r)
-wc style = dynamic weatherCondition fmt
-  where
-    fmt = case style of
-      Textual  -> const "WC"
-      Symbolic -> fSymbol
+wc Textual  = dynamic (const "WC") weatherCondition
+wc Symbolic = dynamic fSymbol weatherCondition
 
 -- | Static indicator for @UVI@.
 -- Displays "UV" if Textual, and "☼" if symbolic.
 uv :: ContentStyle -> Format r r
-uv style = static fmt
-  where
-    fmt = case style of
-      Textual  -> "UV"
-      Symbolic -> fSymbol SunFlat
+uv Textual  = static "UV"
+uv Symbolic = static $ fSymbol SunFlat
 
 -- | Dynamic indicator for @Wind@'s direction component.
 -- Displays a cardinal direction code (e.g. "NW") if Textual, and an arrow
 -- pointing in a cardinal direction if Symbolic (e.g. "↖ ").
 wd :: ContentStyle -> Format r (Forecast -> r)
-wd style = dynamic windVelocity fmt
-  where
-    fmt = case style of
-      Textual  -> disp
-      Symbolic -> fSymbol
+wd Textual  = dynamicDisplay Compact windVelocity
+wd Symbolic = dynamic fSymbol windVelocity
 
 -- | Static indicator for Humidity.
 -- Displays "rH" if Textual, and "🌢 " if Symbolic.
 rH :: ContentStyle -> Format r r
-rH style = static fmt
-  where
-    fmt = case style of
-      Textual  -> "rH"
-      Symbolic -> fSymbol DropletWide
+rH Textual  = static "rH"
+rH Symbolic = static $ fSymbol DropletWide
 
 -- | Static indicator for Temperature.
 -- Displays "T " if Textual, and "🌡️ " if Symbolic.
 te :: ContentStyle -> Format r r
-te style = static fmt
-  where
-    fmt = case style of
-      Textual  -> "T "
-      Symbolic -> fSymbol Thermometer
+te Textual  = static "T "
+te Symbolic = static $ fSymbol Thermometer
 
 -- | Dynamic indicator for moon phase.
 -- Displays "MP" if Textual, and an emoji representing
 -- the moon phase if Symbolic.
 mp :: ContentStyle -> Format r (Forecast -> r)
-mp style = dynamic moon fmt
-  where
-    fmt = case style of
-      Textual  -> const "MP"
-      Symbolic -> fSymbol
+mp Textual  = dynamic (const "MP") moon
+mp Symbolic = dynamic fSymbol moon
 
 -- | Data segment representing the @weatherCondition@ field for
 -- the given @Forecast@.
 condition :: DisplayStyle -> Format r (Forecast -> r)
-condition style = dynamic weatherCondition $ display style
+condition style = dynamicDisplay style weatherCondition
 
 -- | Data segment representing the default temperature of the given @Forecast@.
 -- DailyForecast displays the high.
 -- CurrentWeather displays the current temperature.
 temp :: Format r (Forecast -> r)
-temp = dynamic t disp
+temp = dynamicDisplay Compact t
   where
     t DailyForecast{temperatureHigh} = temperatureHigh
-    t CurrentWeather{temperature} = temperature
+    t CurrentWeather{temperature}    = temperature
 
 -- | Data segment representing the low temperature of the given @Forecast@.
 tempL :: Format r (Forecast -> r)
-tempL = dynamic t disp
+tempL = dynamicDisplay Compact t
   where
     t DailyForecast{temperatureLow} = temperatureLow
     t CurrentWeather{temperature} = temperature
 
 -- | Data segment representing the high temperature of the given @Forecast@.
 tempH :: Format r (Forecast -> r)
-tempH = dynamic t disp
+tempH = dynamicDisplay Compact t
   where
     t DailyForecast{temperatureHigh} = temperatureHigh
     t CurrentWeather{temperature} = temperature
 
 -- | Data segment representing the humidity of the given @Forecast@.
 humid :: Format r (Forecast -> r)
-humid = dynamic h disp
+humid = dynamicDisplay Compact h
   where
     h DailyForecast{humidity} = humidity
     h CurrentWeather{humidity} = humidity
 
 -- | Data segment representing the UV index of the given @Forecast@.
 uvI :: DisplayStyle -> Format r (Forecast -> r)
-uvI style = dynamic u (display style)
+uvI style = dynamicDisplay style u
   where
     u DailyForecast{uvIndex} = uvIndex
     u CurrentWeather{} = undefined
 
 -- | Data segment representing the wind velocity of the given @Forecast@.
 wind :: DisplayStyle -> Format r (Forecast -> r)
-wind style = dynamic w (display style)
+wind style = dynamicDisplay style w
   where
     w DailyForecast{windVelocity} = windVelocity
     w CurrentWeather{} = undefined
 
--- cwtr :: Forecast
--- cwtr = CurrentWeather (Just PartlyCloudy) (Fahrenheit 54) (RelativeHumidity 55) (Just WaningGibbous)
-
-status :: Forecast -> S.Text
-status = sformat (wc Symbolic <> temp >+% rH Symbolic <+> humid <+> mp Symbolic)
-
-uviComponent :: Forecast -> S.Text
-uviComponent = sformat (uv Symbolic % "  " %> uvI Expanded)
+date :: (FormatTime a) => DTStyle -> Int -> a -> S.Text
+date s w dt = padCenterLeft w $ sformat (fstr s) dt
+  where
+    fstr (DayStyle DayAbbr)  = " " % dayNameShort % " "
+    fstr (DayStyle DateDash) = month >% "-" <> dayOfMonth

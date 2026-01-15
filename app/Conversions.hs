@@ -23,16 +23,13 @@ liftT f (Fahrenheit t) = Fahrenheit (f t)
 liftT f (Celsius t)    = Celsius (f t)
 liftT f (Kelvin t)     = Kelvin (f t)
 
-numT :: Temperature -> Double
-numT (Fahrenheit t) = t
-numT (Celsius t)    = t
-numT (Kelvin t)     = t
-
 liftT2 :: (Double -> Double -> Double) -> Temperature -> Temperature -> Temperature
 liftT2 f (Fahrenheit t)    (Fahrenheit t') = Fahrenheit (f t t')
 liftT2 f ut@(Fahrenheit _) ut'             = liftT2 f ut (toFahrenheit ut')
+
 liftT2 f (Celsius t)       (Celsius t')    = Celsius    (f t t')
 liftT2 f ut@(Celsius _)    ut'             = liftT2 f ut (toCelsius ut')
+
 liftT2 f (Kelvin t)        (Kelvin t')     = Kelvin (f t t')
 liftT2 f ut@(Kelvin _)     ut'             = liftT2 f ut (toKelvin ut')
 
@@ -62,55 +59,55 @@ round1 x = fromIntegral (floor (x + 0.5) :: Integer) :: Double
 -- Convert the OWM moon_phase float to a defined MoonPhase type
 toMoonPhase :: Double -> Maybe MoonPhase
 toMoonPhase x
-    | x `elem` [0, 1]          = Just NewMoon
-    | (x > 0   ) && (x < 0.25) = Just WaxingCrescent
-    | x == 0.25                = Just FirstQuarter
-    | (x > 0.25) && (x < 0.5)  = Just WaxingGibbous
-    | x == 0.50                = Just FullMoon
-    | (x > 0.50) && (x < 0.75) = Just WaningGibbous
-    | x == 0.75                = Just LastQuarter
-    | (x > 0.75) && (x < 1.00) = Just WaningCrescent
-    | otherwise                = Nothing
+  | x `elem` [0, 1]          = Just NewMoon
+  | (x > 0   ) && (x < 0.25) = Just WaxingCrescent
+  | x == 0.25                = Just FirstQuarter
+  | (x > 0.25) && (x < 0.5)  = Just WaxingGibbous
+  | x == 0.50                = Just FullMoon
+  | (x > 0.50) && (x < 0.75) = Just WaningGibbous
+  | x == 0.75                = Just LastQuarter
+  | (x > 0.75) && (x < 1.00) = Just WaningCrescent
+  | otherwise                = Nothing
 
 -- Convert the OWM weather condition code to a defined type
 toWeatherCondition :: Integer -> Maybe WeatherCondition
 toWeatherCondition x
-    |  inRange  (200, 299) x  = Just Thunderstorm
-    |  inRange  (300, 399) x
-    || inRange  (502, 599) x  = Just Rain
-    |  inRange  (500, 501) x  = Just RainPartial
-    |  inRange  (600, 699) x  = Just Snow
-    |  x == 701               = Just Mist
-    |  x == 711               = Just Smoke
-    |  x `elem` [721, 731,
-                 751, 761]    = Just Haze
-    |  x == 741               = Just Fog
-    |  x == 781               = Just Tornado
-    |  x == 800               = Just Clear
-    |  x == 801               = Just PartlyCloudy
-    |  x `elem` [802, 803]    = Just MostlyCloudy
-    |  x == 804               = Just Cloudy
-    |  otherwise              = Nothing
+  |  inRange  (200, 299) x  = Just Thunderstorm
+  |  inRange  (300, 399) x
+  || inRange  (502, 599) x  = Just Rain
+  |  inRange  (500, 501) x  = Just RainPartial
+  |  inRange  (600, 699) x  = Just Snow
+  |  x == 701               = Just Mist
+  |  x == 711               = Just Smoke
+  |  x `elem` [721, 731,
+               751, 761]    = Just Haze
+  |  x == 741               = Just Fog
+  |  x == 781               = Just Tornado
+  |  x == 800               = Just Clear
+  |  x == 801               = Just PartlyCloudy
+  |  x `elem` [802, 803]    = Just MostlyCloudy
+  |  x == 804               = Just Cloudy
+  |  otherwise              = Nothing
 
 toPressureSymbol :: PressureLevel -> Text
 toPressureSymbol pl = case pl of
-    HighPressure   -> "🅗 "
-    NormalPressure -> "⚫"
-    LowPressure    -> "🅛 "
+  HighPressure   -> "🅗 "
+  NormalPressure -> "⚫"
+  LowPressure    -> "🅛 "
 
 -- Convert the angle of the wind (in degrees) to a cardinal direction
 toCardinalDirection :: Integer -> Maybe CardinalDirection
 toCardinalDirection x 
-    |  inRange(0, 22)    x 
-    || inRange(338, 359) x = Just North
-    |  inRange(23, 67)   x = Just NorthEast
-    |  inRange(68, 112)  x = Just East
-    |  inRange(113, 157) x = Just SouthEast
-    |  inRange(158, 202) x = Just South
-    |  inRange(203, 247) x = Just SouthWest
-    |  inRange(248, 292) x = Just West
-    |  inRange(293, 337) x = Just NorthWest
-    |  otherwise           = Nothing
+  |  inRange(0, 22)    x 
+  || inRange(338, 359) x = Just North
+  |  inRange(23, 67)   x = Just NorthEast
+  |  inRange(68, 112)  x = Just East
+  |  inRange(113, 157) x = Just SouthEast
+  |  inRange(158, 202) x = Just South
+  |  inRange(203, 247) x = Just SouthWest
+  |  inRange(248, 292) x = Just West
+  |  inRange(293, 337) x = Just NorthWest
+  |  otherwise           = Nothing
 
 -- Check whether the time of day is between sunrise and sunset
 isDayCurrent :: Current -> Bool
@@ -138,27 +135,26 @@ toSpeed _ s = MetresPerSecond s
 
 toPressureLevel :: Integer -> PressureLevel
 toPressureLevel p
-    | p > 1014  = HighPressure
-    | p < 1012  = LowPressure
-    | otherwise = NormalPressure
+  | p > 1014  = HighPressure
+  | p < 1012  = LowPressure
+  | otherwise = NormalPressure
 
 -- Formula: https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml
 toHeatIndex :: Temperature -> RelativeHumidity -> Temperature
-toHeatIndex te (RelativeHumidity rhI) = out
+toHeatIndex te (RelativeHumidity rhI) = case te of
+  Fahrenheit _  ->             heatIndexF te
+  Celsius    _  -> toCelsius $ heatIndexF te
+  Kelvin     _  -> toKelvin  $ heatIndexF te
   where
-    out = case te of
-        Fahrenheit _  -> finalHI
-        Celsius    _  -> toCelsius finalHI
-        Kelvin     _  -> toKelvin finalHI
-    finalHI = heatIndex (toFahrenheit te)
-    heatIndex (Fahrenheit t)
-        | adjHI < 80 = Fahrenheit $ 0.5 * (t + 61 + ((t - 68) * 1.2) + (rh * 0.094))
-        | otherwise  = Fahrenheit adjHI
-          where
-            rh = fromIntegral rhI
-            hi = -42.379 + 2.04901523*t + 10.14333127*rh - 0.22475541*t*rh - 0.00683783*t*t - 0.05481717*rh*rh + 0.00122874*t*t*rh + 0.00085282*t*rh*rh - 0.00000199*t*t*rh*rh
-            adjHI
-                | rh < 0.13 && t > 80 && t < 112 = hi - ((13 - rh) / 4) * sqrt ((17 - abs (t - 95)) / 17)
-                | rh > 0.85 && t > 80 && t < 87 = hi + ((rh - 85) / 10) * ((87 - t) / 5)
-                | otherwise = hi
-    heatIndex _ = error "heatIndex is not directly implemented for Celsius or Kelvin"
+    heatIndexF (Fahrenheit t) = heatIndex t
+    heatIndexF t              = heatIndexF $ toFahrenheit t
+    heatIndex t
+      | adjHI < 80 = Fahrenheit $ 0.5 * (t + 61 + ((t - 68) * 1.2) + (rh * 0.094))
+      | otherwise  = Fahrenheit adjHI
+        where
+          rh = fromIntegral rhI
+          hi = -42.379 + 2.04901523*t + 10.14333127*rh - 0.22475541*t*rh - 0.00683783*t*t - 0.05481717*rh*rh + 0.00122874*t*t*rh + 0.00085282*t*rh*rh - 0.00000199*t*t*rh*rh
+          adjHI
+              | rh < 0.13 && t > 80 && t < 112 = hi - ((13 - rh) / 4) * sqrt ((17 - abs (t - 95)) / 17)
+              | rh > 0.85 && t > 80 && t < 87 = hi + ((rh - 85) / 10) * ((87 - t) / 5)
+              | otherwise = hi

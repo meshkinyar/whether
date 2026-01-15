@@ -16,7 +16,7 @@ data CardinalDirection = NorthWest | North | NorthEast
                        | SouthWest | South | SouthEast
 
 data UnitSystem = Standard | Metric | Imperial
-    deriving (Generic, Read, Show)
+  deriving (Generic, Read, Show)
 instance FromJSON UnitSystem
 instance ToJSON UnitSystem
 
@@ -27,7 +27,6 @@ data Speed = MilesPerHour Double | MetresPerSecond Double
 
 data MoonPhase = NewMoon  | WaxingCrescent | FirstQuarter | WaxingGibbous
                | FullMoon | WaningGibbous  | LastQuarter  | WaningCrescent
-    deriving Generic
 
 -- Weather Conditions with Unicode Representations
 data WeatherCondition = Clear
@@ -35,34 +34,28 @@ data WeatherCondition = Clear
                       | Rain     | RainPartial  | Thunderstorm | Tornado
                       | Fog      | Mist         | Haze         | Smoke 
                       | Snow     | Sleet
-    deriving (Generic, Eq)
+  deriving Eq
 
 data Temperature = Kelvin Double | Celsius Double | Fahrenheit Double
-    deriving Generic
 
 newtype RelativeHumidity = RelativeHumidity Integer
-newtype Pressure = Pressure Double
 
 newtype UVI = UVI Double
-  deriving Generic
-instance FromJSON UVI
 
 data WindVelocity = WindVelocity CardinalDirection Speed
-    deriving Generic
 
+newtype Pressure = Pressure Double
 data PressureLevel = HighPressure | NormalPressure | LowPressure
-
-instance FromJSON WeatherCondition
 
 type Coordinates = (Double, Double)
 
 -- Wrapper for config file metadata
-data Config = Config
-    { apiKey     :: S.Text
-    , loc        :: S.Text
-    , unitSystem :: UnitSystem
-    }
-    deriving Generic
+data Config = OWMConfig
+  { apiKey     :: S.Text
+  , loc        :: S.Text
+  , unitSystem :: UnitSystem
+  }
+  deriving Generic
 
 instance FromJSON Config
 instance ToJSON Config
@@ -70,50 +63,50 @@ instance ToJSON Config
 type GeocodeRoot = [MatchedLocation]
 
 data MatchedLocation = MatchedLocation
-    { name    :: S.Text
-    , lat     :: Double
-    , lon     :: Double
-    , country :: S.Text
-    } 
-    deriving Generic
+  { name    :: S.Text
+  , lat     :: Double
+  , lon     :: Double
+  , country :: S.Text
+  } 
+  deriving Generic
 instance FromJSON MatchedLocation
 instance ToJSON MatchedLocation
 
 data OneCallRoot = OneCallRoot
-    { lat             :: Double
-    , lon             :: Double
-    , timezone        :: S.Text
-    , timezone_offset :: Integer
-    , current         :: Current
-    , minutely        :: Maybe [Minutely]
-    , hourly          :: [Hourly]
-    , daily           :: [Daily]
-    , alerts          :: Maybe [Alert]
-    } 
-    deriving Generic
+  { lat             :: Double
+  , lon             :: Double
+  , timezone        :: S.Text
+  , timezone_offset :: Integer
+  , current         :: Current
+  , minutely        :: Maybe [Minutely]
+  , hourly          :: [Hourly]
+  , daily           :: [Daily]
+  , alerts          :: Maybe [Alert]
+  } 
+  deriving Generic
 instance FromJSON OneCallRoot
 instance ToJSON OneCallRoot
 
 data Current = Current
-    { dt         :: POSIXTime
-    , sunrise    :: POSIXTime
-    , sunset     :: POSIXTime
-    , c_temp       :: Double
-    , feels_like :: Double
-    , pressure   :: Double
-    , humidity   :: Integer 
-    , dew_point  :: Double
-    , uvi        :: Double
-    , clouds     :: Integer
-    , visibility :: Maybe Integer
-    , wind_speed :: Double
-    , wind_deg   :: Integer
-    , wind_gust  :: Maybe Double
-    , weather    :: [Weather]
-    , rain       :: Maybe Precip1h
-    , snow       :: Maybe Precip1h
-    }
-    deriving Generic
+  { dt         :: POSIXTime
+  , sunrise    :: POSIXTime
+  , sunset     :: POSIXTime
+  , c_temp     :: Double
+  , feels_like :: Double
+  , pressure   :: Double
+  , humidity   :: Integer 
+  , dew_point  :: Double
+  , uvi        :: Double
+  , clouds     :: Integer
+  , visibility :: Maybe Integer
+  , wind_speed :: Double
+  , wind_deg   :: Integer
+  , wind_gust  :: Maybe Double
+  , weather    :: [Weather]
+  , rain       :: Maybe Precip1h
+  , snow       :: Maybe Precip1h
+  }
+  deriving Generic
 instance FromJSON Current where
     parseJSON = genericParseJSON $ defaultOptions { fieldLabelModifier = _current }
 instance ToJSON Current where
@@ -249,7 +242,8 @@ data Forecast =
     , sunset           :: UTCTime
     , sunrise          :: UTCTime
     , weatherCondition :: Maybe WeatherCondition
-    , temperatureRange :: (Temperature, Temperature)
+    , temperatureHigh  :: Temperature
+    , temperatureLow   :: Temperature
     , humidity         :: RelativeHumidity
     , pressure         :: Pressure
     , windVelocity     :: Maybe WindVelocity
@@ -259,10 +253,10 @@ data Forecast =
     , moon             :: Maybe MoonPhase
     } 
   | CurrentWeather
-    { condition   :: Maybe WeatherCondition
-    , temperature :: Temperature
-    , humidity    :: RelativeHumidity
-    , moon        :: Maybe MoonPhase
+    { weatherCondition :: Maybe WeatherCondition
+    , temperature      :: Temperature
+    , humidity         :: RelativeHumidity
+    , moon             :: Maybe MoonPhase
     }
 
 -- Label Functions
