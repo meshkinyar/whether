@@ -1,7 +1,7 @@
-{-# LANGUAGE FlexibleInstances   #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE DuplicateRecordFields     #-}
+{-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE ExistentialQuantification #-}
 
 module Whether.Display where
@@ -59,20 +59,35 @@ instance Display MoonPhase where
   display Expanded WaningCrescent = "Waning Crescent"
 
 instance Display WeatherCondition where
-  display _ Clear        = "Clear"
-  display _ Cloudy       = "Cloudy"
-  display _ PartlyCloudy = "Partly Cloudy"
-  display _ MostlyCloudy = "Mostly Cloudy"
-  display _ Rain         = "Rain"
-  display _ RainPartial  = "Partial Rain"
-  display _ Thunderstorm = "Thunderstorm"
-  display _ Tornado      = "Tornado"
-  display _ Snow         = "Snow"
-  display _ Sleet        = "Sleet"
-  display _ Fog          = "Fog"
-  display _ Mist         = "Mist"
-  display _ Haze         = "Haze"
-  display _ Smoke        = "Smoke"
+  display Compact Clear        = "Clear"
+  display Compact Cloudy       = "Cloudy"
+  display Compact PartlyCloudy = "P. Cldy"
+  display Compact MostlyCloudy = "M. Cldy"
+  display Compact Rain         = "Rain"
+  display Compact RainPartial  = "P. Rain"
+  display Compact Thunderstorm = "Thunder"
+  display Compact Tornado      = "Tornado"
+  display Compact Snow         = "Snow"
+  display Compact Sleet        = "Sleet"
+  display Compact Fog          = "Fog"
+  display Compact Mist         = "Mist"
+  display Compact Haze         = "Haze"
+  display Compact Smoke        = "Smoke"
+
+  display Expanded Clear        = "Clear"
+  display Expanded Cloudy       = "Cloudy"
+  display Expanded PartlyCloudy = "Partly Cloudy"
+  display Expanded MostlyCloudy = "Mostly Cloudy"
+  display Expanded Rain         = "Rain"
+  display Expanded RainPartial  = "Partial Rain"
+  display Expanded Thunderstorm = "Thunderstorm"
+  display Expanded Tornado      = "Tornado"
+  display Expanded Snow         = "Snow"
+  display Expanded Sleet        = "Sleet"
+  display Expanded Fog          = "Fog"
+  display Expanded Mist         = "Mist"
+  display Expanded Haze         = "Haze"
+  display Expanded Smoke        = "Smoke"
 
 instance Display a => Display (Maybe a) where
   display style (Just x) = display style x
