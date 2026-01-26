@@ -10,6 +10,7 @@ import Data.Time.Clock.POSIX ( POSIXTime )
 data Forecast =
     DailyForecast
     { time             :: UTCTime
+    -- location
     , sunset           :: UTCTime
     , sunrise          :: UTCTime
     , weatherCondition :: Maybe WeatherCondition
@@ -24,9 +25,13 @@ data Forecast =
     , moon             :: Maybe MoonPhase
     } 
   | CurrentWeather
-    { weatherCondition :: Maybe WeatherCondition
+    { time             :: UTCTime
+    -- location
+    , weatherCondition :: Maybe WeatherCondition
     , temperature      :: Temperature
     , humidity         :: RelativeHumidity
+    , uvIndex          :: UVI
+    , windVelocity     :: Maybe WindVelocity
     , moon             :: Maybe MoonPhase
     }
 

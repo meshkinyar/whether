@@ -5,20 +5,21 @@
 
 module Whether.Config where
 
-import GHC.Generics             ( Generic            )
-import Data.Aeson               ( ToJSON, FromJSON   )
-import Text.Read                ( readMaybe          )
+import GHC.Generics             ( Generic                  )
+import Data.Aeson               ( ToJSON, FromJSON         )
+import Text.Read                ( readMaybe                )
 import Toml.Schema
-import Toml.Schema.FromValue    ( typeError          )
-import qualified Data.Text as S ( Text, show, unpack )
+import Toml.Schema.FromValue    ( typeError                )
+import qualified Data.Text as S ( Text, show, unpack       )
 
-import Whether.Frame            ( LineStyle          )
-import Whether.Units            ( UnitSystem         )
+import Whether.Frame            ( LineStyle                )
+import Whether.Units            ( UnitSystem, TimeNotation )
 
 data Config = 
   Config
     { location       :: S.Text
     , unitSystem     :: UnitSystem
+    , timeNotation   :: TimeNotation
     , lineStyle      :: LineStyle
     , openWeatherMap :: Maybe OWMConfig
     }
@@ -32,6 +33,11 @@ newtype OWMConfig = OWMConfig { apiKey :: S.Text }
 instance FromValue UnitSystem where
   fromValue = fromValueGround "Metric | Imperial | Standard"
 instance ToValue UnitSystem where
+  toValue = Text . S.show
+
+instance FromValue TimeNotation where
+  fromValue = fromValueGround "TwelveHour | TwentyFourHour"
+instance ToValue TimeNotation where
   toValue = Text . S.show
 
 instance FromValue LineStyle where

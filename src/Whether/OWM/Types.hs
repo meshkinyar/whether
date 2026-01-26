@@ -240,22 +240,27 @@ toCardinalDirection x
   |  inRange(293, 337) x = Just NorthWest
   |  otherwise           = Nothing
 
+toWindVelocity :: UnitSystem -> Integer -> Double -> Maybe WindVelocity
+toWindVelocity units deg s = do
+  dir <- toCardinalDirection deg
+  return $ WindVelocity dir (toSpeed units s)
+
 -- | Creates a daily forecast from a Daily object in a OneCall API response.
 mkDailyForecast :: UnitSystem -> Daily -> Forecast
 mkDailyForecast units day = DailyForecast
   { time             = posixSecondsToUTCTime $ day ^. #dt
   , sunrise          = posixSecondsToUTCTime $ day ^. #sunrise
   , sunset           = posixSecondsToUTCTime $ day ^. #sunset
-  , weatherCondition = getFirstWeather $ day ^. #weather
-  , temperatureHigh  = toTemperature units $ day ^. #temp % #min
-  , temperatureLow   = toTemperature units $ day ^. #temp % #max
-  , humidity         = RelativeHumidity $ day ^. #humidity
-  , pressure         = Pressure $ day ^. #pressure
-  , windVelocity     = windF $ day ^. #wind_deg
-  , uvIndex          = UVI $ day ^. #uvi 
-  , rainfall         = toPrecip $ day ^. #rain
-  , snowfall         = toPrecip $ day ^. #snow
-  , moon             = toMoonPhase $ day ^. #moon_phase
+  , weatherCondition = getFirstWeather       $ day ^. #weather
+  , temperatureHigh  = toTemperature units   $ day ^. #temp % #min
+  , temperatureLow   = toTemperature units   $ day ^. #temp % #max
+  , humidity         = RelativeHumidity      $ day ^. #humidity
+  , pressure         = Pressure              $ day ^. #pressure
+  , windVelocity     = windF                 $ day ^. #wind_deg
+  , uvIndex          = UVI                   $ day ^. #uvi 
+  , rainfall         = toPrecip              $ day ^. #rain
+  , snowfall         = toPrecip              $ day ^. #snow
+  , moon             = toMoonPhase           $ day ^. #moon_phase
   }
   where
     toPrecip field = do toPrecipitation units <$> field
@@ -270,14 +275,18 @@ getDailyForecasts config oneCall = map (mkDailyForecast (unitSystem config)) $ d
 -- | Gets the current weather reading from a OneCall API response.
 getCurrentWeather :: Config -> OneCallRoot -> Forecast
 getCurrentWeather config oneCall = CurrentWeather
-  { weatherCondition = getFirstWeather $ cur ^. #weather
-  , temperature      = toTemperature (unitSystem config) $ cur ^. #temp
-  , humidity         = RelativeHumidity $ cur ^. #humidity
+  { time             = posixSecondsToUTCTime               $ cur ^. #dt
+  , weatherCondition = getFirstWeather                     $ cur ^. #weather
+  , temperature      = toTemperature u                     $ cur ^. #temp
+  , humidity         = RelativeHumidity                    $ cur ^. #humidity
+  , uvIndex          = UVI                                 $ cur ^. #uvi
+  , windVelocity     = toWindVelocity u (cur ^. #wind_deg) $ cur ^. #wind_speed
   , moon             = case daily oneCall of
-      x:_ -> toMoonPhase $ moon_phase x
-      []  -> Nothing
+    x:_ -> toMoonPhase $ moon_phase x
+    []  -> Nothing
   }
   where
+    u   = unitSystem config
     cur = current oneCall
 
 -- | Helper to get the first weather condition ID from a list of @(Weather) objects.

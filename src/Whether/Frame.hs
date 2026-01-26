@@ -3,14 +3,19 @@
 
 module Whether.Frame where
 
-import Data.List               ( intersperse )
+import Data.Int
 import Formatting
 import GHC.Generics
 import Whether.Weather
 import Whether.Display
+import Whether.Formatters
+import qualified Data.Text.Lazy as T
+import qualified Data.Text.Lazy.Builder as T
 import qualified Data.Text as S ( Text, pack, concat, show, intercalate, replicate, length )
 
 newtype Element = Border Border
+
+type Component r = FrameProperties -> Forecast -> Format r r
 
 data Border = Top
             | Divider
@@ -20,82 +25,71 @@ data FrameProperties = FrameProperties
   { lineStyle    :: LineStyle
   , dtStyle      :: DTStyle
   , contentStyle :: ContentStyle
-  , colWidth     :: Int
-  , mode         :: DisplayStyle
+  , displayMode  :: DisplayMode
+  , cellWidth    :: Int
+  , cellCount    :: Int
   }
 
-data Frame = Frame
+data Frame r = Frame
   { properties :: FrameProperties
-  , order      :: [Element]
+  , rows       :: [Row r]
   }
 
-data Row = 
+data Row r = 
   Row
-    {
-      cells     :: [Cell]
-    , sepChar   :: S.Text
-    , leftChar  :: S.Text
-    , rightChar :: S.Text
+    { mkCell    :: Component r
+    , sepChar   :: T.Text
+    , leftChar  :: Format r r
+    , rightChar :: Format r r
     }
-
-newtype Cell = Cell S.Text
 
 data LineStyle = Rounded | Angular | ASCII
   deriving (Eq, Read, Show, Generic)
 
-wrapRowContent :: [S.Text] -> S.Text
-wrapRowContent t = S.concat $ wrapContent t
-  where
-    wrapContent []   = []
-    wrapContent [x]  = [x]
-    wrapContent (x:xs) = x : "│" : wrapContent xs
-
--- Framers
-
--- makeRows :: [Cell] -> [Row]
--- makeRows [] = []
--- makeRows [Cell t] = [Row t "│" "│" "│"]
--- makeRows ts = map (\t -> Row  "│" "│" "│")
-
-mkBorderRow :: LineStyle -> Border -> Int -> Int -> Row
-mkBorderRow Rounded btype w n = border btype
-  where
-    border Top     = row "┬" "╭" "╮"
-    border Divider = row "┼" "├" "┤"
-    border Bottom  = row "┴" "╰" "╯"
-    row sep = Row (mkBorderCells w n "─" sep) sep
-mkBorderRow Angular btype w n = border btype
-  where
-    border Top     = row "┬" "┌" "┐"
-    border Divider = row "┼" "├" "┤"
-    border Bottom  = row "┴" "└" "┘"
-    row sep = Row (mkBorderCells w n "─" sep) sep
-mkBorderRow ASCII btype w n = border btype
-  where
-    border Top     = row "+" "/" "\\"
-    border Divider = row "+" "+" "+"
-    border Bottom  = row "+" "\\" "/"
-    row sep = Row (mkBorderCells w n "-" sep) sep
- 
-mkBorderCells :: Int -> Int -> S.Text -> S.Text -> [Cell]
-mkBorderCells w n line sep = intersperse (Cell sep) . replicate n . Cell . S.replicate w $ line
-
--- contentRow :: (a -> S.Text) -> [a] -> Row
--- contentRow formatter li = Row "│" body "│"
+-- formatFrame :: Frame T.Text -> [Forecast] -> T.Text
+-- formatFrame (Frame fp rs) = format rowList
 --   where
---   body = concatWrap $ map formatter li
+--     rowList = foldl (\f s -> f >% "\n" <> row fp s)
+--               (later $ const "")
+--               rs
 
--- unwrapRow :: Row -> S.Text
--- unwrapRow (Row x y z) = x <> y <> z
-  
-compactFormat :: FrameProperties -> S.Text -> S.Text -> S.Text
+row :: FrameProperties -> [Forecast] -> Row r -> Format r r
+row fp forecasts (Row mk s l r) = l % foldl (\b f -> b % mk fp f) "" forecasts % r
+
+contentRow :: LineStyle -> Component r -> Row r
+contentRow style f = Row f b b' b'
+  where
+    b  = boundary style :: T.Text
+    b' = boundary style :: Format r r
+    boundary ASCII = "|"
+    boundary _     = "│"
+
+borderRow :: LineStyle -> Border -> Row r
+borderRow Rounded Top     = mkBorderRow Rounded "┬" "╭" "╮"
+borderRow Rounded Divider = mkBorderRow Rounded "┼" "├" "┤"
+borderRow Rounded Bottom  = mkBorderRow Rounded "┴" "╰" "╯"
+borderRow Angular Top     = mkBorderRow Angular "┬" "┌" "┐"
+borderRow Angular Divider = mkBorderRow Angular "┼" "├" "┤"
+borderRow Angular Bottom  = mkBorderRow Angular "┴" "└" "┘"
+borderRow ASCII   Top     = mkBorderRow ASCII   "+" "/" "\\"
+borderRow ASCII   Divider = mkBorderRow ASCII   "+" "+" "+"
+borderRow ASCII   Bottom  = mkBorderRow ASCII   "+" "\\" "/"
+
+mkBorderRow :: LineStyle -> T.Text -> Format r r -> Format r r -> Row r
+mkBorderRow ASCII = Row $ spanRow "-"
+mkBorderRow _     = Row $ spanRow "─"
+
+spanRow :: T.Text -> Component r
+spanRow t fp _ = now . T.fromLazyText . T.replicate (fromIntegral $ cellWidth fp) $ t
+
+compactFormat :: FrameProperties -> T.Text -> T.Text -> T.Text
 compactFormat fp icoL t = " " <> icoL <> t <> padR
   where
-    padR = S.replicate lenR " "
-    lenR = colWidth fp - S.length t - S.length icoL - 1
+    padR = T.replicate lenR " "
+    lenR = fromIntegral $ fromIntegral (cellWidth fp) - T.length t - T.length icoL - 1
 
-expandedFormat :: FrameProperties -> S.Text -> S.Text -> S.Text
+expandedFormat :: FrameProperties -> T.Text -> T.Text -> T.Text
 expandedFormat fp x y = " " <> x <> " " <> y <> padR
   where
-    padR = S.replicate lenR " "
-    lenR = colWidth fp - S.length y - S.length x - 2
+    padR = T.replicate lenR " "
+    lenR = fromIntegral $ fromIntegral (cellWidth fp) - T.length y - T.length x - 2

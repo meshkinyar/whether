@@ -59,18 +59,21 @@ createConfig path = do
   loc        <- S.getLine
   units      <- validateInputValue Metric
               "Please choose a unit system "
+  tn         <- validateInputValue TwentyFourHour
+              "Please choose the time notation "
   ls         <- validateInputValue Rounded
               "Please choose a line style "
   createDirectoryIfMissing True $ takeDirectory path
-  S.writeFile path . S.show . Toml.encode $ mkOWMConfig (api, key, loc, units, ls)
+  S.writeFile path . S.show . Toml.encode $ mkOWMConfig (api, key, loc, units, tn, ls)
 
 -- | Creates a new config from the provided values.
-mkOWMConfig :: (WeatherAPI, S.Text, S.Text, UnitSystem, LineStyle) -> Config
-mkOWMConfig (api, key, loc, units, ls) =
+mkOWMConfig :: (WeatherAPI, S.Text, S.Text, UnitSystem, TimeNotation, LineStyle) -> Config
+mkOWMConfig (api, key, loc, units, tn, ls) =
   Config
     {
       location                 = loc
     , unitSystem               = units
+    , timeNotation             = tn
     , Whether.Config.lineStyle = ls
     , openWeatherMap           = owm api
     }

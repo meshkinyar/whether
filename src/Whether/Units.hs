@@ -15,6 +15,9 @@ data UnitSystem = Standard | Metric | Imperial
 newtype UnitSystemCache = UnitSystemCache { cachedUnitSystem :: UnitSystem }
   deriving (Eq, Read, Show, Generic)
 
+data TimeNotation = TwelveHour | TwentyFourHour
+  deriving (Eq, Read, Show, Generic)
+
 data CardinalDirection = NorthWest | North | NorthEast
                        | West              | East
                        | SouthWest | South | SouthEast

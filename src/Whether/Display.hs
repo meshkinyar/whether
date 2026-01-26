@@ -6,22 +6,31 @@
 
 module Whether.Display where
 
+import Data.Int                 ( Int64 )
 import Data.Time.Format
 import Data.Time.Clock.POSIX    ( posixSecondsToUTCTime )
 import Data.Time.Clock          ( UTCTime )
 import Formatting
 import Formatting.Time
-
-import qualified Data.Text as S ( Text, pack, unpack, show, intercalate, replicate, length )
+import qualified Data.Text.Lazy as T ( Text, pack, unpack, show, intercalate, replicate, length )
 
 import Whether.Weather
 import Whether.Units 
 
-newtype DTStyle = DayStyle DayStyle
+data DTStyle = 
+  DTStyle
+  { dayStyle    :: DayStyle
+  , currentStyle :: CurrentStyle
+  }
 
-data DayStyle = DayAbbr | DateDash
+data DayStyle = DayAbbr | MonthDay | DayMonth
 
-data DisplayStyle = Compact | Expanded
+data CurrentStyle = HourMinute TimeNotation
+                  | DayNameHourMinute TimeNotation
+                  | MonthDayHourMinute TimeNotation
+                  | YearMonthDayHourMinute TimeNotation
+
+data DisplayMode = Compact | Expanded
 
 data StaticIcon = Thermometer
                 | DropletWide
@@ -34,10 +43,10 @@ data StaticIcon = Thermometer
 data ContentStyle = Textual | Symbolic
 
 class Display a where
-  display :: DisplayStyle -> a -> S.Text
+  display :: DisplayMode -> a -> T.Text
 
 class Symbol a where
-  symbol :: a -> S.Text
+  symbol :: a -> T.Text
 
 instance Display MoonPhase where
   display Compact NewMoon        = "NM"
@@ -111,14 +120,14 @@ instance Display Speed where
     where
       display' (MilesPerHour s)  = f s "mph"
       display' (MetresPerSecond s) = f s "m/s"
-      f x u = S.show (round x :: Integer) <> " " <> u
+      f x u = T.show (round x :: Integer) <> " " <> u
 
 instance Display RelativeHumidity where
-  display _ (RelativeHumidity rH) = S.show rH <> "%"
+  display _ (RelativeHumidity rH) = T.show rH <> "%"
 
 instance Display UVI where
-  display Compact  (UVI u) = S.show (round u :: Integer)
-  display Expanded (UVI u) = S.show (round u :: Integer) <> " - " <> severity
+  display Compact  (UVI u) = T.show (round u :: Integer)
+  display Expanded (UVI u) = T.show (round u :: Integer) <> " - " <> severity
     where
       severity
         | 0    <= u && u < 2.5  = "Low"
@@ -151,7 +160,7 @@ instance Display WindVelocity where
   display style (WindVelocity dir speed) = display style dir <> display style speed
 
 instance Display Pressure where
-  display _ (Pressure p) = S.show p <> " hPa"
+  display _ (Pressure p) = T.show p <> " hPa"
 
 instance Symbol StaticIcon where
   symbol Thermometer       = "🌡️"
@@ -210,23 +219,23 @@ instance Symbol a => Symbol (Maybe a) where
   symbol Nothing  = ""
   symbol (Just x) = symbol x
 
-showRound :: Double -> S.Text
-showRound x = S.show (round x :: Integer)
+showRound :: Double -> T.Text
+showRound x = T.show (round x :: Integer)
 
-fSymbol :: (Symbol a) => a -> S.Text
+fSymbol :: (Symbol a) => a -> T.Text
 fSymbol t = padChar $ symbol t
 
-padCenterLeft :: Int -> S.Text -> S.Text
+padCenterLeft :: Int -> T.Text -> T.Text
 padCenterLeft w content = leftPad <> content <> rightPad
   where
-    leftPad       = S.replicate padLength " "
-    rightPad      = S.replicate (padLength - leftPadLength) " "
-    padLength     = w - S.length content
+    leftPad       = T.replicate padLength " "
+    rightPad      = T.replicate (padLength - leftPadLength) " "
+    padLength     = fromIntegral w - T.length content
     leftPadLength = padLength `div` 2
 
 -- Emojis are not consistently displayed in a terminal
 -- These manual adjustments are likely to change
-padChar :: S.Text -> S.Text
+padChar :: T.Text -> T.Text
 padChar ch = ch <> spaces where
   spaces 
     | ch `elem` [ "❄️ "

@@ -4,26 +4,28 @@
 module Whether.Formatters where
 
 import Data.Time.Format
+import Formatting
 import Formatting.Time
 import Formatting.Internal
-import qualified Data.Text.Lazy.Builder as T
-import qualified Data.Text as S
+import qualified Data.Text.Lazy as T         ( Text )
+import qualified Data.Text.Lazy.Builder as T ( singleton, fromLazyText )
 
 import Whether.Weather
 import Whether.Display
+import Whether.Units
 
 -- | Base function for formatters that display data from a @(Forecast).
-dynamic :: (a -> S.Text) -> (Forecast -> a) -> Format r (Forecast -> r)
-dynamic fmt field = later $ T.fromText . fmt . field
+dynamic :: (a -> T.Text) -> (Forecast -> a) -> Format r (Forecast -> r)
+dynamic fmt field = later $ T.fromLazyText . fmt . field
 
 -- | Base function for formatters that display output that only depends on the
 -- provided formatting function.
-static :: S.Text -> Format r r
-static fmt = now $ T.fromText fmt
+static :: T.Text -> Format r r
+static fmt = now $ T.fromLazyText fmt
 
 -- | Convenience method for dynamic formatters with a simple formatting function.
-dynamicDisplay :: (Display a) => DisplayStyle -> (Forecast -> a) -> Format r (Forecast -> r)
-dynamicDisplay style field = later $ T.fromText . display style . field
+dynamicDisplay :: (Display a) => DisplayMode -> (Forecast -> a) -> Format r (Forecast -> r)
+dynamicDisplay mode field = later $ T.fromLazyText . display mode . field
 
 -- | Applies the left and right formatters to the same data argument, appending
 -- their results with a space. This is just @(<%+>) from Formatting, but with
@@ -103,55 +105,65 @@ mp Symbolic = dynamic fSymbol moon
 
 -- | Data segment representing the @weatherCondition@ field for
 -- the given @Forecast@.
-condition :: DisplayStyle -> Format r (Forecast -> r)
-condition style = dynamicDisplay style weatherCondition
+condition :: DisplayMode -> Format r (Forecast -> r)
+condition mode = dynamicDisplay mode weatherCondition
 
 -- | Data segment representing the default temperature of the given @Forecast@.
--- DailyForecast displays the high.
 -- CurrentWeather displays the current temperature.
+-- DailyForecast displays the high.
 temp :: Format r (Forecast -> r)
 temp = dynamicDisplay Compact t
   where
-    t DailyForecast{temperatureHigh} = temperatureHigh
     t CurrentWeather{temperature}    = temperature
+    t DailyForecast{temperatureHigh} = temperatureHigh
 
 -- | Data segment representing the low temperature of the given @Forecast@.
 tempL :: Format r (Forecast -> r)
 tempL = dynamicDisplay Compact t
   where
+    t CurrentWeather{temperature}   = temperature
     t DailyForecast{temperatureLow} = temperatureLow
-    t CurrentWeather{temperature} = temperature
 
 -- | Data segment representing the high temperature of the given @Forecast@.
 tempH :: Format r (Forecast -> r)
 tempH = dynamicDisplay Compact t
   where
-    t DailyForecast{temperatureHigh} = temperatureHigh
     t CurrentWeather{temperature} = temperature
+    t DailyForecast{temperatureHigh} = temperatureHigh
 
 -- | Data segment representing the humidity of the given @Forecast@.
 humid :: Format r (Forecast -> r)
 humid = dynamicDisplay Compact h
   where
-    h DailyForecast{humidity} = humidity
     h CurrentWeather{humidity} = humidity
+    h DailyForecast{humidity} = humidity
 
 -- | Data segment representing the UV index of the given @Forecast@.
-uvI :: DisplayStyle -> Format r (Forecast -> r)
-uvI style = dynamicDisplay style u
+uvi :: DisplayMode -> Format r (Forecast -> r)
+uvi mode = dynamicDisplay mode u
   where
-    u DailyForecast{uvIndex} = uvIndex
     u CurrentWeather{} = undefined
+    u DailyForecast{uvIndex} = uvIndex
 
 -- | Data segment representing the wind velocity of the given @Forecast@.
-wind :: DisplayStyle -> Format r (Forecast -> r)
-wind style = dynamicDisplay style w
+wind :: DisplayMode -> Format r (Forecast -> r)
+wind mode = dynamicDisplay mode w
   where
+    w CurrentWeather{windVelocity} = windVelocity
     w DailyForecast{windVelocity} = windVelocity
-    w CurrentWeather{} = undefined
 
-date :: (FormatTime a) => DTStyle -> Int -> a -> S.Text
-date s w dt = padCenterLeft w $ sformat (fstr s) dt
+-- | Data segment showing a formatted datetime of the provided forecast.
+datetime :: DTStyle -> Format r (Forecast -> r)
+datetime styles = later dt
   where
-    fstr (DayStyle DayAbbr)  = " " % dayNameShort % " "
-    fstr (DayStyle DateDash) = month >% "-" <> dayOfMonth
+    dt CurrentWeather{time}                     = bformat (dtDay (dayStyle styles)) time
+    dt DailyForecast{time}                      = bformat (dtCurrent (currentStyle styles)) time
+    dtDay DayAbbr                               = dayNameShort
+    dtDay MonthDay                              = month >% "-" <> dayOfMonth
+    dtDay DayMonth                              = dayOfMonth % "-" <> month
+    dtCurrent (HourMinute TwelveHour)           = hour12 >% ":" <> minute <> dayHalf
+    dtCurrent (HourMinute TwentyFourHour)       = hm
+    dtCurrent (DayNameHourMinute notation)      = dayNameShort <> dtCurrent (HourMinute notation)
+    dtCurrent (MonthDayHourMinute notation)     = dayNameShort <> dtCurrent (HourMinute notation)
+    dtCurrent (YearMonthDayHourMinute notation) = year <> dtCurrent (MonthDayHourMinute notation)
+
