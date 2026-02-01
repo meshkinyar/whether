@@ -19,9 +19,13 @@ import Whether.Config
 import Whether.Units
 import Whether.Weather
 
+-- | Type synonym for a 2D point of Double values.
 type Coordinates = (Double, Double)
+
+-- | The root object returned by the Geocoding API.
 type GeocodeRoot = [MatchedLocation]
 
+-- | Data matched to the provided location string.
 data MatchedLocation = MatchedLocation
   { name    :: S.Text
   , lat     :: Double
@@ -32,6 +36,7 @@ data MatchedLocation = MatchedLocation
 instance FromJSON MatchedLocation
 instance ToJSON MatchedLocation
 
+-- | The root object returned by the OneCall 3.0 API.
 data OneCallRoot = OneCallRoot
   { lat             :: Double
   , lon             :: Double
@@ -47,6 +52,7 @@ data OneCallRoot = OneCallRoot
 instance FromJSON OneCallRoot
 instance ToJSON OneCallRoot
 
+-- | Object containing the current weather.
 data Current = Current
   { dt         :: POSIXTime
   , sunrise    :: POSIXTime
@@ -71,6 +77,7 @@ data Current = Current
 instance FromJSON Current
 instance ToJSON Current
 
+-- | Object containing a given minute's forecast.
 data Minutely = Minutely
   { dt            :: POSIXTime
   , precipitation :: Double
@@ -79,6 +86,7 @@ data Minutely = Minutely
 instance FromJSON Minutely
 instance ToJSON Minutely
 
+-- | Object containing a given hour's forecast.
 data Hourly = Hourly
   { dt         :: POSIXTime
   , temp       :: Double
@@ -101,6 +109,7 @@ data Hourly = Hourly
 instance FromJSON Hourly
 instance ToJSON Hourly
 
+-- | Object containing the precipitation expected over one hour.
 newtype Precip1h = Precip1h
   { oneH :: Double }
   deriving Generic
@@ -114,6 +123,7 @@ _precip1h :: String -> String
 _precip1h "oneH" = "1h"
 _precip1h x = x
 
+-- | Object containing a given day's forecast.
 data Daily = Daily
   { dt            :: POSIXTime
   , sunrise       :: POSIXTime
@@ -141,6 +151,7 @@ data Daily = Daily
 instance FromJSON Daily
 instance ToJSON Daily
 
+-- | Object containing temperature data for a given day.
 data DailyTemp = DailyTemp
   { day   :: Double
   , min   :: Double
@@ -153,6 +164,7 @@ data DailyTemp = DailyTemp
 instance FromJSON DailyTemp
 instance ToJSON DailyTemp
 
+-- | Object containing feels like temperature data for a given day.
 data DailyFeelsLike = DailyFeelsLike
   { day   :: Double
   , night :: Double
@@ -163,6 +175,7 @@ data DailyFeelsLike = DailyFeelsLike
 instance FromJSON DailyFeelsLike
 instance ToJSON DailyFeelsLike
 
+-- | Object containing data on the weather condition.
 data Weather = Weather
   { id          :: Integer
   , main        :: S.Text
@@ -174,6 +187,7 @@ data Weather = Weather
 instance FromJSON Weather
 instance ToJSON Weather
 
+-- | Object containing data on any active weather alerts in the area.
 data Alert = Alert
   { sender_name :: S.Text
   , event       :: S.Text

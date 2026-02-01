@@ -17,21 +17,27 @@ import qualified Data.Text.Lazy as T ( Text, pack, unpack, show, intercalate, re
 import Whether.Weather
 import Whether.Units 
 
+-- | A record containing the datetime mode of all @(Forecast) records. 
 data DTStyle = 
   DTStyle
-  { dayStyle    :: DayStyle
+  { dayStyle     :: DayStyle
   , currentStyle :: CurrentStyle
   }
 
-data DayStyle = DayAbbr | MonthDay | DayMonth
+-- | Represents the style used to display the day.
+data DayStyle = DayAbbr | DayMonth | MonthDay
 
+-- | Represents the style used to display the current date and/or time,
+-- parameterized by @(TimeNotation).
 data CurrentStyle = HourMinute TimeNotation
                   | DayNameHourMinute TimeNotation
                   | MonthDayHourMinute TimeNotation
                   | YearMonthDayHourMinute TimeNotation
 
+-- | Represents whether to display weather in a compact or expanded form.
 data DisplayMode = Compact | Expanded
 
+-- | Represents a single, static, non-ASCII character.
 data StaticIcon = Thermometer
                 | DropletWide
                 | SunFlat
@@ -40,11 +46,16 @@ data StaticIcon = Thermometer
                 | TriangleUpSmall
                 | TriangleDownSmall
 
+-- | Represents the style used to display indicators.
+-- Textual represents indicators as alphanumeric characters.
+-- Symbolic uses emojis and other unicode symbols.
 data ContentStyle = Textual | Symbolic
 
+-- | Types that have a defined textual representation in this package.
 class Display a where
   display :: DisplayMode -> a -> T.Text
 
+-- | Types that have a defined symbolic representation in this package.
 class Symbol a where
   symbol :: a -> T.Text
 
@@ -98,10 +109,12 @@ instance Display WeatherCondition where
   display Expanded Haze         = "Haze"
   display Expanded Smoke        = "Smoke"
 
+-- Nothing is represented by an empty string.
 instance Display a => Display (Maybe a) where
   display style (Just x) = display style x
   display _      Nothing = ""
 
+-- In practice, the expanded representations will likely not be used.
 instance Display Temperature where
   display Compact  (Kelvin t)     = showRound t <> " K"
   display Expanded (Kelvin t)     = showRound t <> " Kelvin"
@@ -111,9 +124,6 @@ instance Display Temperature where
 
   display Compact  (Fahrenheit t) = showRound t <> "°F"
   display Expanded (Fahrenheit t) = showRound t <> "° Farenheit"
-
-instance Display (Temperature, Temperature) where
-  display style (high, low) = display style high <> " - " <> display style low
 
 instance Display Speed where
   display _ = display'
@@ -219,9 +229,11 @@ instance Symbol a => Symbol (Maybe a) where
   symbol Nothing  = ""
   symbol (Just x) = symbol x
 
+-- | Shows the rounded representation of a double.
 showRound :: Double -> T.Text
 showRound x = T.show (round x :: Integer)
 
+-- | Formats a symbol with padding.
 fSymbol :: (Symbol a) => a -> T.Text
 fSymbol t = padChar $ symbol t
 
@@ -233,8 +245,9 @@ padCenterLeft w content = leftPad <> content <> rightPad
     padLength     = fromIntegral w - T.length content
     leftPadLength = padLength `div` 2
 
--- Emojis are not consistently displayed in a terminal
--- These manual adjustments are likely to change
+-- Pads the character so it doesn't overlap.
+-- This is needed because emojis are not consistently displayed in a terminal.
+-- These manual adjustments are likely to change.
 padChar :: T.Text -> T.Text
 padChar ch = ch <> spaces where
   spaces 
