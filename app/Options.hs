@@ -11,7 +11,7 @@ data Command = Now NowOptions
              | Forecast  ForecastOptions
              | Calibrate
 
-data Options = Options
+newtype Options = Options
     { optCommand :: Command }
 
 data NowOptions = NowOptions
@@ -59,7 +59,7 @@ pForecast = Forecast <$> ( ForecastOptions <$> pDays <*> pStyle <*> pLoc )
 days :: ReadM Int
 days = do
     n <- auto
-    case (inRange (1, 8) n) of
+    case inRange (1, 8) n of
         True  -> return n
         False -> readerError "Days must be in the range 1-8"
 
@@ -79,7 +79,7 @@ pCalibrate = pure Calibrate
 ---- Common ----
 pStyle :: Parser ForecastStyle
 pStyle = flag BasicOption ExpandedOption
-    (  long  "complete" 
+    (  long  "expanded" 
     <> short 'e'
     <> help  "Print an expanded forecast"
     )
