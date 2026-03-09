@@ -43,7 +43,7 @@ cmdForecast config ForecastOptions{optStyle, optDays} = do
     $ getDailyForecasts config oneCall
     where
       frame = case optStyle of
-        BasicOption    -> undefined
+        CompactOption  -> formatFrame (detailFrame config) -- TODO: Add compactFrame
         ExpandedOption -> formatFrame (detailFrame config)
 
 -- Calibrate Emoji widths

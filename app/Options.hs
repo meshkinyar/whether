@@ -5,7 +5,7 @@ module Options where
 import Options.Applicative
 import Data.Ix ( inRange )
 
-data ForecastStyle = BasicOption | ExpandedOption
+data ForecastMode = ExpandedOption | CompactOption 
 
 data Command = Now NowOptions 
              | Forecast  ForecastOptions
@@ -15,14 +15,14 @@ newtype Options = Options
     { optCommand :: Command }
 
 data NowOptions = NowOptions
-    { optStyle  :: ForecastStyle
+    { optStyle  :: ForecastMode
     , optFormat :: Maybe String
     , optLoc    :: Maybe String
     }
 
 data ForecastOptions = ForecastOptions
     { optDays  :: Int
-    , optStyle :: ForecastStyle
+    , optStyle :: ForecastMode
     , optLoc   :: Maybe String
 --  , optHours :: Int
     }
@@ -50,11 +50,12 @@ pOptions = Options
 
 ---- now ----
 pNow :: Parser Command
-pNow = Now <$> ( NowOptions <$> pStyle <*> pFormat <*> pLoc )
+pNow = Now <$> ( NowOptions <$> pMode <*> pFormat <*> pLoc )
 ----
+
 ---- forecast ----
 pForecast :: Parser Command
-pForecast = Forecast <$> ( ForecastOptions <$> pDays <*> pStyle <*> pLoc )
+pForecast = Forecast <$> ( ForecastOptions <$> pDays <*> pMode <*> pLoc )
 
 days :: ReadM Int
 days = do
@@ -71,17 +72,17 @@ pDays = option days
     <> help    "Forecast N days"
     )
 ----
-----
+
 ---- calibrate ----
 pCalibrate :: Parser Command
 pCalibrate = pure Calibrate
 
 ---- Common ----
-pStyle :: Parser ForecastStyle
-pStyle = flag BasicOption ExpandedOption
-    (  long  "expanded" 
-    <> short 'e'
-    <> help  "Print an expanded forecast"
+pMode :: Parser ForecastMode
+pMode = flag ExpandedOption CompactOption
+    (  long  "compact" 
+    <> short 'c'
+    <> help  "Print a compact forecast"
     )
 
 pLoc :: Parser (Maybe String)
@@ -99,6 +100,7 @@ pFormat = optional $ strOption
     <> metavar "FORMAT_STR" 
     <> help    "Output weather status to format specified by FORMAT_STR"
     )
+
 ----
 
 -- hours :: Parser Int

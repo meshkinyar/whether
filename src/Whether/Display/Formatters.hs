@@ -68,7 +68,13 @@ infixr 7 %+>
 -- Displays "WC" if Textual, and an emoji representing the weather if Symbolic.
 wc :: GlyphStyle -> Format r (Forecast -> r)
 wc Textual  = dynamic (const "WC") weatherCondition
-wc Symbolic = dynamic symbol weatherCondition
+wc Symbolic = dynamic symbol' weatherCondition'
+  where
+    symbol' (weatherCondition, time, sunrise, sunset)
+      | (time < sunrise) || (time > sunset) = "✨"
+      | otherwise = symbol Clear
+    weatherCondition' df@DailyForecast{} = (weatherCondition df, time df, sunrise df, sunset df)
+    weatherCondition' cw@CurrentWeather{} = (weatherCondition cw, time cw, sunrise cw, sunset cw)
 
 -- | Static indicator for @UVI@.
 -- Displays "UV" if Textual, and "☼" if symbolic.

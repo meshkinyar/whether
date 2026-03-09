@@ -290,6 +290,8 @@ getDailyForecasts config oneCall = map (mkDailyForecast (config ^. #unitSystem))
 getCurrentWeather :: Config -> OneCallRoot -> Forecast
 getCurrentWeather config oneCall = CurrentWeather
   { time             = posixSecondsToUTCTime               $ cur ^. #dt
+  , sunrise          = posixSecondsToUTCTime               $ cur ^. #sunrise
+  , sunset           = posixSecondsToUTCTime               $ cur ^. #sunset
   , weatherCondition = getFirstWeather                     $ cur ^. #weather
   , temperature      = toTemperature u                     $ cur ^. #temp
   , humidity         = RelativeHumidity                    $ cur ^. #humidity

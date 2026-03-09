@@ -27,6 +27,8 @@ data Forecast =
   | CurrentWeather
     { time             :: UTCTime
     -- location
+    , sunset           :: UTCTime
+    , sunrise          :: UTCTime
     , weatherCondition :: Maybe WeatherCondition
     , temperature      :: Temperature
     , humidity         :: RelativeHumidity
