@@ -25,7 +25,7 @@ import Whether.Config
 import Whether.OWM.Types
 
 ensureOWMAPIKey :: Config -> Either String S.Text
-ensureOWMAPIKey cfg = ensure (openWeatherMap cfg)
+ensureOWMAPIKey cfg = ensure (cfg ^. #openWeatherMap)
   where
     ensure Nothing = Left "Missing entry for 'config.openWeatherMap' in config.toml."
     ensure (Just owm)
@@ -99,12 +99,12 @@ getOneCall lockOnFail cfg = do
         location    <- getLocation cfg
         oneCallResp <- callOWMAPI (ensureOWMAPIKey cfg)
                      $ oneCallRequest (location ^. #lat, location ^. #lon)
-                     $ unitSystem cfg
+                     $ cfg ^. #unitSystem
         case (eitherDecode oneCallResp :: Either String OneCallRoot) of
           Left x  -> do setLock
                         die x
           Right x -> cacheJSON "oneCall.json" x
-                  >> cacheJSON "unitSystem.json" (unitSystem cfg)
+                  >> cacheJSON "unitSystem.json" (cfg ^. #unitSystem)
                   >> return x
 
 -- Get the first matched location from the OWM geocoding API
@@ -113,7 +113,7 @@ getLocation cfg = do
   geocodeCache <- getJSONCache "geocode.json" :: IO (Maybe GeocodeRoot)
   case geocodeCache of
     Just (match:_) ->
-      if name match == location cfg
+      if name match == cfg ^. #location
         then return match
         else getGeocode
     _              -> getGeocode
@@ -121,7 +121,7 @@ getLocation cfg = do
     getGeocode = do
       geocodeResp <- callOWMAPI (ensureOWMAPIKey cfg)
                   $  geocodeRequest
-                  $  location cfg
+                  $  cfg ^. #location
       case (decode geocodeResp :: Maybe GeocodeRoot) of
         Nothing    -> die "Invalid Geocoding Response. Ensure that your API key in config.json is valid."
         Just []    -> die "Empty Geocoding Response."

@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric             #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE DuplicateRecordFields     #-}
@@ -6,6 +7,7 @@
 
 module Whether.Display where
 
+import GHC.Generics
 import Data.Int                 ( Int64 )
 import Data.Time.Format
 import Data.Time.Clock.POSIX    ( posixSecondsToUTCTime )
@@ -16,23 +18,6 @@ import qualified Data.Text.Lazy as T ( Text, pack, unpack, show, intercalate, re
 
 import Whether.Weather
 import Whether.Units 
-
--- | A record containing the datetime mode of all @(Forecast) records. 
-data DTStyle = 
-  DTStyle
-  { dayStyle     :: DayStyle
-  , currentStyle :: CurrentStyle
-  }
-
--- | Represents the style used to display the day.
-data DayStyle = DayAbbr | DayMonth | MonthDay
-
--- | Represents the style used to display the current date and/or time,
--- parameterized by @(TimeNotation).
-data CurrentStyle = HourMinute TimeNotation
-                  | DayNameHourMinute TimeNotation
-                  | MonthDayHourMinute TimeNotation
-                  | YearMonthDayHourMinute TimeNotation
 
 -- | Represents whether to display weather in a compact or expanded form.
 data DisplayMode = Compact | Expanded
@@ -46,10 +31,11 @@ data StaticIcon = Thermometer
                 | TriangleUpSmall
                 | TriangleDownSmall
 
--- | Represents the style used to display indicators.
+-- | Represents the style used to display indicators and other glyphs.
 -- Textual represents indicators as alphanumeric characters.
 -- Symbolic uses emojis and other unicode symbols.
-data ContentStyle = Textual | Symbolic
+data GlyphStyle = Symbolic | Textual
+  deriving (Eq, Read, Show, Generic)
 
 -- | Types that have a defined textual representation in this package.
 class Display a where
@@ -195,7 +181,7 @@ instance Symbol WindVelocity where
   symbol (WindVelocity dir _) = symbol dir
 
 instance Symbol WeatherCondition where
-  symbol Clear        = "☀️ "
+  symbol Clear        = "☀️"
   symbol Cloudy       = "☁ "
   symbol PartlyCloudy = "🌤️"
   symbol MostlyCloudy = "🌥️"
@@ -232,28 +218,3 @@ instance Symbol a => Symbol (Maybe a) where
 -- | Shows the rounded representation of a double.
 showRound :: Double -> T.Text
 showRound x = T.show (round x :: Integer)
-
--- | Formats a symbol with padding.
-fSymbol :: (Symbol a) => a -> T.Text
-fSymbol t = padChar $ symbol t
-
-padCenterLeft :: Int -> T.Text -> T.Text
-padCenterLeft w content = leftPad <> content <> rightPad
-  where
-    leftPad       = T.replicate padLength " "
-    rightPad      = T.replicate (padLength - leftPadLength) " "
-    padLength     = fromIntegral w - T.length content
-    leftPadLength = padLength `div` 2
-
--- Pads the character so it doesn't overlap.
--- This is needed because emojis are not consistently displayed in a terminal.
--- These manual adjustments are likely to change.
-padChar :: T.Text -> T.Text
-padChar ch = ch <> spaces where
-  spaces 
-    | ch `elem` [ "❄️ "
-      , "☀️ "
-      , "⛈️ "
-      ] = ""
-    | otherwise   = " "
-

@@ -1,99 +1,97 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Whether.Frame where
+module Whether.Display.Frame where
 
 import Data.Int
 import Formatting
 import GHC.Generics
 import Whether.Weather
 import Whether.Display
-import Whether.Formatters
+import Whether.Display.Formatters
+import Whether.Units
+
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.Builder as T
 import qualified Data.Text as S ( Text, pack, concat, show, intercalate, replicate, length )
 
 -- | A function used to compose a row by formatting individual cells.
-type Component r = FrameProperties -> Format r (Forecast -> r)
+type Component a = FrameProperties -> Format T.Builder (a -> T.Builder)
 
--- | A type representing a border within a frame.
+-- | Represents a type of border within a @(Frame).
 data Border = Top
             | Divider
             | Bottom
 
 -- | A record of properties used to format elements within a frame.
 data FrameProperties = FrameProperties
-  { lineStyle    :: LineStyle
-  , dtStyle      :: DTStyle
-  , contentStyle :: ContentStyle
-  , displayMode  :: DisplayMode
-  , cellWidth    :: Int
-  , cellCount    :: Int
+  { lineStyle   :: LineStyle
+  , dtStyle     :: DTStyle
+  , glyphStyle  :: GlyphStyle
+  , displayMode :: DisplayMode
+  , cellWidth   :: Int
+  , cellCount   :: Int
   }
+  deriving Generic
 
 -- | A record containing all information used to print a "frame", or table of
 -- formatters displaying weather data.
-data Frame r = Frame
+data Frame a = Frame
   { properties :: FrameProperties
-  , rows       :: [Row r]
+  , rows       :: [Row a]
   }
 
 -- | A record containing a component used to determine cell characters,
 -- as well as left, right, and separator border characters.
-data Row r = Row
-  { composeCell :: Component r
-  , sepChar     :: T.Text
-  , leftChar    :: Format r r
-  , rightChar   :: Format r r
+data Row a = Row
+  { composeCell :: Component a
+  , separator   :: T.Text
+  , leftBound   :: Format T.Builder T.Builder
+  , rightBound  :: Format T.Builder T.Builder
   }
 
 -- | Determines the style of Unicode character used by borders and line rows.
 data LineStyle = Rounded | Angular | ASCII
   deriving (Eq, Read, Show, Generic)
 
--- formatFrame :: Frame T.Text -> [Forecast] -> T.Text
--- formatFrame (Frame fp rs) = format rowList
---   where
---     rowList = foldl (\f s -> f >% "\n" <> row fp s)
---               (later $ const "")
---               rs
+formatFrame :: Frame a -> [a] -> T.Builder
+formatFrame (Frame fp rs) list = foldMap (\r -> bformat (composeRow r fp) list <> "\n") rs
 
--- row :: FrameProperties -> [Forecast] -> Row r -> Format r r
--- row fp forecasts (Row mk s l r) = l % foldl (\b f -> b % mk fp f) "" forecasts % r
+composeRow :: Row a -> FrameProperties -> Format T.Builder ([a] -> T.Builder)
+composeRow (Row compose sep l r) fp = l %> intercalated sep (compose fp) >% r
 
 -- | Creates a row based on the provided @(LineStyle) and @(Component).
 -- Content rows use the same character for left, right, and separator chars.
-contentRow :: LineStyle -> Component r -> Row r
-contentRow style f = Row f b b' b'
+contentRow :: LineStyle -> Component a -> Row a
+contentRow style f = Row f b bl br
   where
-    b  = boundary style :: T.Text
-    b' = boundary style :: Format r r
-    boundary ASCII = "|"
-    boundary _     = "│"
+    (bl, b, br) = boundaries style
+    boundaries ASCII = ("| ", " | ", " |")
+    boundaries _     = ("│ ", " │ ", " │")
 
 -- | Creates a row consisting of border characters.
 -- These are used to form the boundaries of the frame.
-borderRow :: LineStyle -> Border -> Row r
-borderRow Rounded Top     = mkBorderRow Rounded "┬" "╭" "╮"
-borderRow Rounded Divider = mkBorderRow Rounded "┼" "├" "┤"
-borderRow Rounded Bottom  = mkBorderRow Rounded "┴" "╰" "╯"
-borderRow Angular Top     = mkBorderRow Angular "┬" "┌" "┐"
-borderRow Angular Divider = mkBorderRow Angular "┼" "├" "┤"
-borderRow Angular Bottom  = mkBorderRow Angular "┴" "└" "┘"
-borderRow ASCII   Top     = mkBorderRow ASCII   "+" "/" "\\"
-borderRow ASCII   Divider = mkBorderRow ASCII   "+" "+" "+"
-borderRow ASCII   Bottom  = mkBorderRow ASCII   "+" "\\" "/"
+borderRow :: LineStyle -> Border -> Row a
+borderRow Rounded Top     = mkBorderRow Rounded "─┬─" "╭─" "─╮"
+borderRow Rounded Divider = mkBorderRow Rounded "─┼─" "├─" "─┤"
+borderRow Rounded Bottom  = mkBorderRow Rounded "─┴─" "╰─" "─╯"
+borderRow Angular Top     = mkBorderRow Angular "─┬─" "┌─" "─┐"
+borderRow Angular Divider = mkBorderRow Angular "─┼─" "├─" "─┤"
+borderRow Angular Bottom  = mkBorderRow Angular "─┴─" "└─" "─┘"
+borderRow ASCII   Top     = mkBorderRow ASCII   "-+-" "/-" "-\\"
+borderRow ASCII   Divider = mkBorderRow ASCII   "-+-" "+-" "-+"
+borderRow ASCII   Bottom  = mkBorderRow ASCII   "-+-" "\\-" "-/"
 
 -- | Common helper function for @(borderRow) that adds a component consisting
--- entirely of horizontal line cells.
-mkBorderRow :: LineStyle -> T.Text -> Format r r -> Format r r -> Row r
+-- entirely of horizontal lines.
+mkBorderRow :: LineStyle -> T.Text -> Format T.Builder T.Builder -> Format T.Builder T.Builder -> Row a
 mkBorderRow ASCII = Row $ spanCell '-'
 mkBorderRow _     = Row $ spanCell '─'
 
 -- | Component that takes a single character and outputs a cell that repeats
 -- that character to fill the cell width specified in the @(FrameProperties).
-spanCell :: Char -> Component r
-spanCell c fp = later . (\t _ -> T.fromLazyText t) . T.pack . replicate (fromIntegral $ cellWidth fp) $ c
+spanCell :: Char -> Component a
+spanCell c fp = later . (\t _ -> T.fromString t) . replicate (fromIntegral $ cellWidth fp) $ c
 
 compactFormat :: FrameProperties -> T.Text -> T.Text -> T.Text
 compactFormat fp icoL t = " " <> icoL <> t <> padR

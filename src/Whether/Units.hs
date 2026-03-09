@@ -18,6 +18,26 @@ newtype UnitSystemCache = UnitSystemCache { cachedUnitSystem :: UnitSystem }
 data TimeNotation = TwelveHour | TwentyFourHour
   deriving (Eq, Read, Show, Generic)
 
+-- | A record containing the datetime mode of all @(Forecast) records. 
+data DTStyle = 
+  DTStyle
+  { dayStyle     :: DayStyle
+  , currentStyle :: CurrentStyle
+  , timeNotation :: TimeNotation
+  }
+
+-- | Represents the style used to display the day.
+data DayStyle = DayAbbr | DayMonth | MonthDay
+  deriving (Eq, Read, Show, Generic)
+
+-- | Represents the style used to display the current date and/or time,
+-- parameterized by @(TimeNotation).
+data CurrentStyle = HourMinute
+                  | DayNameHourMinute
+                  | MonthDayHourMinute
+                  | YearMonthDayHourMinute
+  deriving (Eq, Read, Show, Generic)
+
 data CardinalDirection = NorthWest | North | NorthEast
                        | West              | East
                        | SouthWest | South | SouthEast

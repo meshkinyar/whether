@@ -2,26 +2,28 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE NamedFieldPuns        #-}
 
 module Main where
 
-import qualified Data.Text.Lazy.IO as T         ( putStr, putStrLn )
+import qualified Data.Text.Lazy.Builder as TB ( toLazyText )
+import qualified Data.Text.Lazy.IO as T       ( putStr, putStrLn )
 
 import Whether.OWM.Types
 import Whether.OWM.Client
 import Whether.Client
 import Whether.Config
-import Whether.Components
+import Whether.Display.Components
+import Whether.Display.Frame
+import Whether.Display.Forecasts
 
 import Options
 import Options.Applicative
 
-import qualified Options as Forecast       ( ForecastOptions(optStyle) )
-
 main :: IO ()
 main = do
   opts   <- execParser (info pOptions idm)
-  config <- getConfig OpenWeatherMap
+  config <- getConfig
   case optCommand opts of
     Now      o -> cmdNow       config o
     Forecast o -> cmdForecast  config o
@@ -35,13 +37,14 @@ cmdNow config _ = do
 
 -- Print a forecast
 cmdForecast :: Config -> ForecastOptions -> IO ()
-cmdForecast config opt = do
+cmdForecast config ForecastOptions{optStyle, optDays} = do
   oneCall <- getOneCall True config
-  T.putStrLn $ undefined frame (optDays opt) $ getDailyForecasts config oneCall
+  T.putStrLn . TB.toLazyText . frame . take optDays
+    $ getDailyForecasts config oneCall
     where
-      frame = case Forecast.optStyle opt of
+      frame = case optStyle of
         BasicOption    -> undefined
-        ExpandedOption -> undefined
+        ExpandedOption -> formatFrame (detailFrame config)
 
 -- Calibrate Emoji widths
 cmdCalibrate :: IO ()

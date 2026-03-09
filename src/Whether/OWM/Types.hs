@@ -266,8 +266,8 @@ mkDailyForecast units day = DailyForecast
   , sunrise          = posixSecondsToUTCTime $ day ^. #sunrise
   , sunset           = posixSecondsToUTCTime $ day ^. #sunset
   , weatherCondition = getFirstWeather       $ day ^. #weather
-  , temperatureHigh  = toTemperature units   $ day ^. #temp % #min
-  , temperatureLow   = toTemperature units   $ day ^. #temp % #max
+  , temperatureLow   = toTemperature units   $ day ^. #temp % #min
+  , temperatureHigh  = toTemperature units   $ day ^. #temp % #max
   , humidity         = RelativeHumidity      $ day ^. #humidity
   , pressure         = Pressure              $ day ^. #pressure
   , windVelocity     = windF                 $ day ^. #wind_deg
@@ -284,7 +284,7 @@ mkDailyForecast units day = DailyForecast
 
 -- | Gets a daily forecast for each day in a OneCall API response.
 getDailyForecasts :: Config -> OneCallRoot -> [Forecast]
-getDailyForecasts config oneCall = map (mkDailyForecast (unitSystem config)) $ daily oneCall
+getDailyForecasts config oneCall = map (mkDailyForecast (config ^. #unitSystem)) $ daily oneCall
 
 -- | Gets the current weather reading from a OneCall API response.
 getCurrentWeather :: Config -> OneCallRoot -> Forecast
@@ -300,8 +300,8 @@ getCurrentWeather config oneCall = CurrentWeather
     []  -> Nothing
   }
   where
-    u   = unitSystem config
-    cur = current oneCall
+    u   = config ^. #unitSystem
+    cur = oneCall ^. #current
 
 -- | Helper to get the first weather condition ID from a list of @(Weather) objects.
 getFirstWeather :: [Weather] -> Maybe WeatherCondition

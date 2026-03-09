@@ -1,14 +1,16 @@
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings   #-}
-
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE OverloadedStrings     #-}
 module Whether.Client where
 
 import Control.Monad                       ( when, unless )
 import Data.Aeson                          ( ToJSON, FromJSON, encodeFile, decodeFileStrict )
 import Data.Time.Clock.POSIX
+import Data.Time.Zones
 import Formatting                          ( (%), formatToString, string )
 import GHC.Generics
+import Optics
 import System.Directory                    ( XdgDirectory( XdgConfig, XdgCache, XdgState ), createDirectoryIfMissing, doesFileExist, getModificationTime, getXdgDirectory )
 import System.FilePath                     ( takeDirectory, (</>) )
 import System.Exit                         ( die )
@@ -22,8 +24,9 @@ import qualified Data.Text as S            ( Text, pack, show, concat )
 import qualified Data.Text.IO as S         ( readFile, writeFile, getLine, putStr )
 import qualified Data.ByteString.Lazy as L ( ByteString )
  
-import Whether.Config
-import Whether.Frame
+import Whether.Display
+import Whether.Config as Config
+import Whether.Display.Frame
 import Whether.Units
 
 instance FromJSON UnitSystem
@@ -33,22 +36,27 @@ instance ToJSON UnitSystem
 data WeatherAPI = OpenWeatherMap
   deriving (Eq, Read, Show, Generic)
 
--- | Retrieves the Whether config file.
-getConfig :: WeatherAPI -> IO Config
-getConfig OpenWeatherMap = do
-    configPath   <- getXdgDirectory XdgConfig "whether/config.toml"
-    configExists <- doesFileExist configPath
-    unless configExists $ createConfig configPath
-    configFile   <- S.readFile configPath
-    case Toml.decode configFile of
-      Failure es      -> die $ foldl (<>) "Invalid config.toml: " es
-      Success [] cfg  -> return cfg 
-      Success es cfg  -> putStrLn (foldl (<>) "Warning when decoding config file:" es)
-                      >> return cfg
+getConfig :: IO Config
+getConfig = do
+  systemTZ   <- loadLocalTZ
+  toConfig systemTZ <$> getConfigFile
+
+-- | Retrieves a @(ConfigFile) record from the config file on disk.
+getConfigFile :: IO ConfigFile
+getConfigFile = do
+  configPath   <- getXdgDirectory XdgConfig "whether/config.toml"
+  configExists <- doesFileExist configPath
+  unless configExists $ createNewConfigFile configPath
+  configFile   <- S.readFile configPath
+  case Toml.decode configFile of
+    Failure es      -> die $ foldl (<>) "Invalid config.toml: " es
+    Success [] cfg  -> return cfg 
+    Success es cfg  -> putStrLn (foldl (<>) "Warning when decoding config file:" es)
+                    >> return cfg
 
 -- | Interactively creates a new config if one doesn't already exist.
-createConfig :: FilePath -> IO ()
-createConfig path = do
+createNewConfigFile :: FilePath -> IO ()
+createNewConfigFile path = do
   hSetBuffering stdout NoBuffering
   putStrLn  $ "No config.toml found, creating new config.toml at " <> path
   api        <- validateInputValue OpenWeatherMap
@@ -64,18 +72,22 @@ createConfig path = do
   ls         <- validateInputValue Rounded
               "Please choose a line style "
   createDirectoryIfMissing True $ takeDirectory path
-  S.writeFile path . S.show . Toml.encode $ mkOWMConfig (api, key, loc, units, tn, ls)
+  S.writeFile path . S.show . Toml.encode $ mkOWMConfigFile (api, key, loc, units, tn, ls)
 
 -- | Creates a new config from the provided values.
-mkOWMConfig :: (WeatherAPI, S.Text, S.Text, UnitSystem, TimeNotation, LineStyle) -> Config
-mkOWMConfig (api, key, loc, units, tn, ls) =
-  Config
+mkOWMConfigFile :: (WeatherAPI, S.Text, S.Text, UnitSystem, TimeNotation, LineStyle) -> ConfigFile
+mkOWMConfigFile (api, key, loc, units, tn, ls) =
+  ConfigFile
     {
-      location                 = loc
-    , unitSystem               = units
-    , timeNotation             = tn
-    , Whether.Config.lineStyle = ls
-    , openWeatherMap           = owm api
+      location       = loc
+    , unitSystem     = units
+    , timeNotation   = tn
+    , lineStyle      = ls
+    , glyphStyle     = Nothing -- Optional override
+    , dayStyle       = Nothing
+    , currentStyle   = Nothing
+    , openWeatherMap = owm api
+    , timezone       = Nothing
     }
     where
       owm OpenWeatherMap = Just OWMConfig { apiKey = key }
@@ -117,9 +129,7 @@ getLockTime lockPath = do
   else return 0
 
 -- | Saves an API response to a JSON cache file.
--- 
 -- Stores the cache file in the system's standard XDG cache directory.
--- TODO: Support custom paths.
 cacheJSON :: (ToJSON a) => FilePath -> a -> IO ()
 cacheJSON filename obj = do
   cachePath <- getXdgDirectory XdgCache "whether"

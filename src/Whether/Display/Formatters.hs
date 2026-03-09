@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE NamedFieldPuns    #-}
 
-module Whether.Formatters where
+module Whether.Display.Formatters where
 
 import Data.Time.Format
 import Formatting
@@ -67,41 +66,49 @@ infixr 7 %+>
 
 -- | Dynamic indicator for @WeatherCondition@.
 -- Displays "WC" if Textual, and an emoji representing the weather if Symbolic.
-wc :: ContentStyle -> Format r (Forecast -> r)
+wc :: GlyphStyle -> Format r (Forecast -> r)
 wc Textual  = dynamic (const "WC") weatherCondition
-wc Symbolic = dynamic fSymbol weatherCondition
+wc Symbolic = dynamic symbol weatherCondition
 
 -- | Static indicator for @UVI@.
 -- Displays "UV" if Textual, and "☼" if symbolic.
-uv :: ContentStyle -> Format r r
+uv :: GlyphStyle -> Format r r
 uv Textual  = static "UV"
-uv Symbolic = static $ fSymbol SunFlat
+uv Symbolic = static $ symbol SunFlat <> " "
 
 -- | Dynamic indicator for @Wind@'s direction component.
 -- Displays a cardinal direction code (e.g. "NW") if Textual, and an arrow
 -- pointing in a cardinal direction if Symbolic (e.g. "↖ ").
-wd :: ContentStyle -> Format r (Forecast -> r)
-wd Textual  = dynamicDisplay Compact windVelocity
-wd Symbolic = dynamic fSymbol windVelocity
+wd :: GlyphStyle -> Format r (Forecast -> r)
+wd Textual  = dynamic display' windVelocity
+  where
+    display' (Just (WindVelocity cd sp)) = padCD cd
+    display' Nothing = "  "
+    padCD North = "N "
+    padCD West  = "W "
+    padCD East  = "E "
+    padCD South = "S "
+    padCD cd = display Compact cd
+wd Symbolic = dynamic symbol windVelocity
 
 -- | Static indicator for Humidity.
 -- Displays "rH" if Textual, and "🌢 " if Symbolic.
-rH :: ContentStyle -> Format r r
+rH :: GlyphStyle -> Format r r
 rH Textual  = static "rH"
-rH Symbolic = static $ fSymbol DropletWide
+rH Symbolic = static $ symbol DropletWide <> " "
 
 -- | Static indicator for Temperature.
 -- Displays "T " if Textual, and "🌡️ " if Symbolic.
-te :: ContentStyle -> Format r r
+te :: GlyphStyle -> Format r r
 te Textual  = static "T "
-te Symbolic = static $ fSymbol Thermometer
+te Symbolic = static $ symbol Thermometer
 
 -- | Dynamic indicator for moon phase.
 -- Displays "MP" if Textual, and an emoji representing
 -- the moon phase if Symbolic.
-mp :: ContentStyle -> Format r (Forecast -> r)
+mp :: GlyphStyle -> Format r (Forecast -> r)
 mp Textual  = dynamic (const "MP") moon
-mp Symbolic = dynamic fSymbol moon
+mp Symbolic = dynamic symbol moon
 
 -- | Data segment representing the @weatherCondition@ field for
 -- the given @Forecast@.
@@ -114,56 +121,59 @@ condition mode = dynamicDisplay mode weatherCondition
 temp :: Format r (Forecast -> r)
 temp = dynamicDisplay Compact t
   where
-    t CurrentWeather{temperature}    = temperature
-    t DailyForecast{temperatureHigh} = temperatureHigh
+    t cw@CurrentWeather{} = temperature cw
+    t df@DailyForecast{} = temperatureHigh df
 
 -- | Data segment representing the low temperature of the given @Forecast@.
 tempL :: Format r (Forecast -> r)
 tempL = dynamicDisplay Compact t
   where
-    t CurrentWeather{temperature}   = temperature
-    t DailyForecast{temperatureLow} = temperatureLow
+    t cw@CurrentWeather{} = temperature cw
+    t df@DailyForecast{} = temperatureLow df
 
 -- | Data segment representing the high temperature of the given @Forecast@.
 tempH :: Format r (Forecast -> r)
 tempH = dynamicDisplay Compact t
   where
-    t CurrentWeather{temperature} = temperature
-    t DailyForecast{temperatureHigh} = temperatureHigh
+    t cw@CurrentWeather{} = temperature cw
+    t df@DailyForecast{} = temperatureHigh df
+
 
 -- | Data segment representing the humidity of the given @Forecast@.
 humid :: Format r (Forecast -> r)
 humid = dynamicDisplay Compact h
   where
-    h CurrentWeather{humidity} = humidity
-    h DailyForecast{humidity} = humidity
+    h cw@CurrentWeather{} = humidity cw
+    h df@DailyForecast{} = humidity df
 
 -- | Data segment representing the UV index of the given @Forecast@.
 uvi :: DisplayMode -> Format r (Forecast -> r)
 uvi mode = dynamicDisplay mode u
   where
-    u CurrentWeather{} = undefined
-    u DailyForecast{uvIndex} = uvIndex
+    u cw@CurrentWeather{} = uvIndex cw
+    u df@DailyForecast{} = uvIndex df
 
 -- | Data segment representing the wind velocity of the given @Forecast@.
 wind :: DisplayMode -> Format r (Forecast -> r)
-wind mode = dynamicDisplay mode w
+wind mode = dynamic disp w
   where
-    w CurrentWeather{windVelocity} = windVelocity
-    w DailyForecast{windVelocity} = windVelocity
+    w cw@CurrentWeather{} = windVelocity cw
+    w df@DailyForecast{} = windVelocity df
+    disp (Just (WindVelocity cd s)) = display Expanded s
+    disp Nothing = ""
 
 -- | Data segment showing a formatted datetime of the provided forecast.
 datetime :: DTStyle -> Format r (Forecast -> r)
 datetime styles = later dt
   where
-    dt CurrentWeather{time}                     = bformat (dtDay (dayStyle styles)) time
-    dt DailyForecast{time}                      = bformat (dtCurrent (currentStyle styles)) time
-    dtDay DayAbbr                               = dayNameShort
-    dtDay MonthDay                              = month >% "-" <> dayOfMonth
-    dtDay DayMonth                              = dayOfMonth % "-" <> month
-    dtCurrent (HourMinute TwelveHour)           = hour12 >% ":" <> minute <> dayHalf
-    dtCurrent (HourMinute TwentyFourHour)       = hm
-    dtCurrent (DayNameHourMinute notation)      = dayNameShort <> dtCurrent (HourMinute notation)
-    dtCurrent (MonthDayHourMinute notation)     = dayNameShort <> dtCurrent (HourMinute notation)
-    dtCurrent (YearMonthDayHourMinute notation) = year <> dtCurrent (MonthDayHourMinute notation)
+    dt        cw@CurrentWeather{}                      = bformat (dtCurrent (currentStyle styles) $ timeNotation styles) (time cw)
+    dt        df@DailyForecast{}                       = bformat (dtDay (dayStyle styles)) (time df)
+    dtDay     DayAbbr                               = dayNameShort
+    dtDay     MonthDay                              = month >% "-" <> dayOfMonth
+    dtDay     DayMonth                              = dayOfMonth % "-" <> month
+    dtCurrent HourMinute             TwelveHour     = hour12 >% ":" <> minute <> dayHalf
+    dtCurrent HourMinute             TwentyFourHour = hm
+    dtCurrent DayNameHourMinute      notation       = dayNameShort <> dtCurrent HourMinute notation
+    dtCurrent MonthDayHourMinute     notation       = dayNameShort <> dtCurrent HourMinute notation
+    dtCurrent YearMonthDayHourMinute notation       = year <> dtCurrent MonthDayHourMinute notation
 
