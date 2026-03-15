@@ -7,14 +7,14 @@ import Data.Ix ( inRange )
 
 data ForecastMode = ExpandedOption | CompactOption 
 
-data Command = Now NowOptions 
-             | Forecast  ForecastOptions
+data Command = Forecast   ForecastOptions
+             | TmuxStatus TmuxStatusOptions 
              | Calibrate
-
+             
 newtype Options = Options
     { optCommand :: Command }
 
-data NowOptions = NowOptions
+data TmuxStatusOptions = TmuxStatusOptions
     { optStyle  :: ForecastMode
     , optFormat :: Maybe String
     , optLoc    :: Maybe String
@@ -32,8 +32,8 @@ data ForecastOptions = ForecastOptions
 pOptions :: Parser Options
 pOptions = Options
     <$> subparser
-    (  command "now" 
-        ( info pNow
+    (  command "tmuxStatus" 
+        ( info pTmuxStatus
         $ progDesc "Output information about the current weather"
         )
     <> command "forecast"
@@ -47,11 +47,6 @@ pOptions = Options
     )
 
 ---- Command Parsers ----
-
----- now ----
-pNow :: Parser Command
-pNow = Now <$> ( NowOptions <$> pMode <*> pFormat <*> pLoc )
-----
 
 ---- forecast ----
 pForecast :: Parser Command
@@ -71,6 +66,11 @@ pDays = option days
     <> metavar "# DAYS (1-8)"
     <> help    "Forecast N days"
     )
+----
+
+---- tmuxStatus ----
+pTmuxStatus :: Parser Command
+pTmuxStatus = TmuxStatus <$> ( TmuxStatusOptions <$> pMode <*> pFormat <*> pLoc )
 ----
 
 ---- calibrate ----

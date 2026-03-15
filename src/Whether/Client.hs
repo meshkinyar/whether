@@ -36,9 +36,10 @@ instance ToJSON UnitSystem
 data WeatherAPI = OpenWeatherMap
   deriving (Eq, Read, Show, Generic)
 
+-- | Gets a @(Config) value from a config file, adding default values where necessary.
 getConfig :: IO Config
 getConfig = do
-  systemTZ   <- loadLocalTZ
+  systemTZ <- loadLocalTZ
   toConfig systemTZ <$> getConfigFile
 
 -- | Retrieves a @(ConfigFile) record from the config file on disk.
@@ -118,16 +119,6 @@ validateInputValue defaultOpt basePrompt = do
 isCacheValid :: POSIXTime -> POSIXTime -> POSIXTime -> Bool
 isCacheValid cacheTime configLastMod now = configLastMod <= cacheTime && now <= cacheTime + 600
 
--- | Gets when the last created lock file was modified.
-getLockTime :: FilePath -> IO POSIXTime
-getLockTime lockPath = do
-  lockExists <- doesFileExist lockPath
-  if lockExists
-  then do
-    t <- utcTimeToPOSIXSeconds <$> getModificationTime lockPath
-    return $ realToFrac t
-  else return 0
-
 -- | Saves an API response to a JSON cache file.
 -- Stores the cache file in the system's standard XDG cache directory.
 cacheJSON :: (ToJSON a) => FilePath -> a -> IO ()
@@ -145,6 +136,20 @@ getJSONCache filename = do
   if exists
   then decodeFileStrict filePath
   else return Nothing
+
+-- | The number of seconds that a lock file prevents execution
+lockDuration :: POSIXTime
+lockDuration = 300
+
+-- | Gets when the last created lock file was modified.
+getLockTime :: FilePath -> IO POSIXTime
+getLockTime lockPath = do
+  lockExists <- doesFileExist lockPath
+  if lockExists
+  then do
+    t <- utcTimeToPOSIXSeconds <$> getModificationTime lockPath
+    return $ realToFrac t
+  else return 0
 
 -- | Creates an empty lock file that prevents execution of whether.
 setLock :: IO ()

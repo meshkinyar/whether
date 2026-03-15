@@ -156,7 +156,7 @@ instance Display WindVelocity where
   display style (WindVelocity dir speed) = display style dir <> display style speed
 
 instance Display Pressure where
-  display _ (Pressure p) = T.show p <> " hPa"
+  display _ (HectoPascal p) = T.show p <> " hPa"
 
 instance Symbol StaticIcon where
   symbol Thermometer       = "🌡️"

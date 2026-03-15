@@ -13,8 +13,9 @@ import Whether.Display.Frame
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.Builder as T
 
-status :: Forecast -> T.Text
-status = format (wc Symbolic <+> temp >+% rH Symbolic <+> humid <+> mp Symbolic)
+-- 
+tmuxStatus :: Forecast -> T.Text
+tmuxStatus = format (wc Symbolic <+> temp >+% rH Symbolic <+> humid <+> mp Symbolic)
 
 dayComponent :: Component Forecast
 dayComponent fp = cpadded (fromIntegral $ cellWidth fp) ' '

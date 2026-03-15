@@ -7,6 +7,7 @@ import Whether.Units
 import Data.Time.Clock       ( UTCTime )
 import Data.Time.Clock.POSIX ( POSIXTime )
 
+-- | A common, processed subset of weather data for consumers.
 data Forecast =
     DailyForecast
     { time             :: UTCTime
@@ -37,9 +38,11 @@ data Forecast =
     , moon             :: Maybe MoonPhase
     }
 
+-- | Represents the phase of the moon at a given point in time.
 data MoonPhase = NewMoon  | WaxingCrescent | FirstQuarter | WaxingGibbous
                | FullMoon | WaningGibbous  | LastQuarter  | WaningCrescent
 
+-- | Represents the weather condition at a given point in time.
 data WeatherCondition = Clear
                       | Cloudy   | MostlyCloudy | PartlyCloudy
                       | Rain     | RainPartial  | Thunderstorm | Tornado
@@ -47,6 +50,8 @@ data WeatherCondition = Clear
                       | Snow     | Sleet
   deriving Eq
 
+-- | Represents the velocity of the wind at a given point in time.
 data WindVelocity = WindVelocity CardinalDirection Speed
 
+-- | Type synonym for Latitude / Longitude values.
 type Coordinates = (Double, Double)

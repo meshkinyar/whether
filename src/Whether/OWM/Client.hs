@@ -5,7 +5,7 @@
 module Whether.OWM.Client where
 
 import Data.Aeson                          ( eitherDecode, decode )
-import Control.Monad                       ( when                 )
+import Control.Monad                       ( when, unless         )
 import Data.ByteString                     ( ByteString           )
 import Data.Text.Encoding                  ( encodeUtf8           )
 import Data.Time.Clock.POSIX
@@ -77,23 +77,26 @@ formatTUnits x = encodeUtf8 $ S.pack $ show x
 
 -- Retrieve from cache if valid or call the OWM OneCall API for a fresh JSON
 getOneCall :: Bool -> Config -> IO OneCallRoot
-getOneCall lockOnFail cfg = do
+getOneCall useCache cfg = do
   now      <- getPOSIXTime
   lockPath <- getXdgDirectory XdgState "whether/lock"
   lockT    <- getLockTime lockPath
 
   -- Stop execution if last response could not be parsed
   -- Prevents API calls from being exhausted by bugs
-  when (lockOnFail && now < realToFrac lockT + 300) $
+  when (now < realToFrac lockT + lockDuration) $
     die $ "New API calls locked due to failed parse, delete " <> lockPath <> " to retry."
 
-  cacheFile <- getJSONCache "oneCall.json" :: IO (Maybe OneCallRoot)
-  lastMod   <- getConfigLastMod
-  case cacheFile of
-    Just cache | isCacheValid (cache ^. #current % #dt) lastMod now
-                           -> return cache
-               | otherwise -> getNew
-    Nothing                -> getNew
+  if useCache
+  then do
+    cacheFile <- getJSONCache "oneCall.json" :: IO (Maybe OneCallRoot)
+    lastMod   <- getConfigLastMod
+    case cacheFile of
+      Just cache | isCacheValid (cache ^. #current % #dt) lastMod now
+                             -> return cache
+                 | otherwise -> getNew
+      Nothing                -> getNew
+  else getNew
     where
       getNew = do
         location    <- getLocation cfg
@@ -103,9 +106,9 @@ getOneCall lockOnFail cfg = do
         case (eitherDecode oneCallResp :: Either String OneCallRoot) of
           Left x  -> do setLock
                         die x
-          Right x -> cacheJSON "oneCall.json" x
-                  >> cacheJSON "unitSystem.json" (cfg ^. #unitSystem)
-                  >> return x
+          Right x -> do cacheJSON "oneCall.json" x
+                        cacheJSON "unitSystem.json" (cfg ^. #unitSystem)
+                        return x
 
 -- Get the first matched location from the OWM geocoding API
 getLocation :: Config -> IO MatchedLocation

@@ -70,9 +70,10 @@ wc :: GlyphStyle -> Format r (Forecast -> r)
 wc Textual  = dynamic (const "WC") weatherCondition
 wc Symbolic = dynamic symbol' weatherCondition'
   where
-    symbol' (weatherCondition, time, sunrise, sunset)
+    symbol' (Just Clear, time, sunrise, sunset)
       | (time < sunrise) || (time > sunset) = "✨"
       | otherwise = symbol Clear
+    symbol' (c, _, _, _) = symbol c
     weatherCondition' df@DailyForecast{} = (weatherCondition df, time df, sunrise df, sunset df)
     weatherCondition' cw@CurrentWeather{} = (weatherCondition cw, time cw, sunrise cw, sunset cw)
 

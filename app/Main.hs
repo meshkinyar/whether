@@ -25,15 +25,15 @@ main = do
   opts   <- execParser (info pOptions idm)
   config <- getConfig
   case optCommand opts of
-    Now      o -> cmdNow       config o
-    Forecast o -> cmdForecast  config o
-    Calibrate  -> cmdCalibrate
+    Forecast   o -> cmdForecast   config o
+    TmuxStatus o -> cmdTmuxStatus config o
+    Calibrate    -> cmdCalibrate
 
 -- Print information about the current weather
-cmdNow :: Config -> NowOptions -> IO ()
-cmdNow config _ = do
+cmdTmuxStatus :: Config -> TmuxStatusOptions -> IO ()
+cmdTmuxStatus config _ = do
   oneCall <- getOneCall True config
-  T.putStr (status $ getCurrentWeather config oneCall)
+  T.putStr (tmuxStatus $ getCurrentWeather config oneCall)
 
 -- Print a forecast
 cmdForecast :: Config -> ForecastOptions -> IO ()
