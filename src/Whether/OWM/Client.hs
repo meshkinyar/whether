@@ -24,6 +24,7 @@ import Whether.Units
 import Whether.Config
 import Whether.OWM.Types
 
+-- | Ensures the existence of an OWM API key.
 ensureOWMAPIKey :: Config -> Either String S.Text
 ensureOWMAPIKey cfg = ensure (cfg ^. #openWeatherMap)
   where
@@ -34,7 +35,7 @@ ensureOWMAPIKey cfg = ensure (cfg ^. #openWeatherMap)
       where
         key = apiKey owm
 
--- Call the OWM API
+-- | Calls the OpenWeatherMap API, returning a lazy bytestring.
 callOWMAPI :: Either String S.Text -> Request -> IO L.ByteString
 callOWMAPI (Left msg) _ = die msg
 callOWMAPI (Right key) request = do
@@ -42,7 +43,7 @@ callOWMAPI (Right key) request = do
   response <- httpLBS r
   return ( getResponseBody response )
 
--- Simple HTTP Requests
+-- | Base request type of OpenWeatherMap APIs.
 owmRequest :: Request
 owmRequest =
     setRequestMethod "GET"
@@ -51,7 +52,7 @@ owmRequest =
   $ setRequestHost "api.openweathermap.org"
     defaultRequest
 
--- | Request type for geocoding API requests
+-- | Request type for geocoding API requests.
 geocodeRequest :: S.Text -> Request
 geocodeRequest location =
     setRequestPath "/geo/1.0/direct"
@@ -60,33 +61,37 @@ geocodeRequest location =
                           ]
     owmRequest
 
--- | Request type for OneCall 3.x requests
+-- | Request type for OneCall 3.x requests.
 oneCallRequest :: Coordinates -> UnitSystem -> Request
 oneCallRequest (inputLat, inputLon) unit =
     setRequestPath "/data/3.0/onecall"
   $ setRequestQueryString [ ("lat"  , Just $ formatCoord inputLat)
                           , ("lon"  , Just $ formatCoord inputLon)
-                          , ("units", Just $ formatTUnits unit)
+                          , ("units", Just $ formatUnits unit)
                           ]
     owmRequest
   where
     formatCoord = encodeUtf8 . S.pack . show
 
-formatTUnits :: UnitSystem -> ByteString
-formatTUnits x = encodeUtf8 $ S.pack $ show x
+-- | Formats a @UnitSystem@ value for the request query string.
+formatUnits :: UnitSystem -> ByteString
+formatUnits x = encodeUtf8 $ S.pack $ show x
 
--- Retrieve from cache if valid or call the OWM OneCall API for a fresh JSON
+-- | Retrieve a @OneCallRoot@ value.
+-- Read from cache if valid or call the OWM OneCall API for a fresh JSON.
 getOneCall :: Bool -> Config -> IO OneCallRoot
 getOneCall useCache cfg = do
   now      <- getPOSIXTime
   lockPath <- getXdgDirectory XdgState "whether/lock"
   lockT    <- getLockTime lockPath
 
-  -- Stop execution if last response could not be parsed
-  -- Prevents API calls from being exhausted by bugs
+  -- Stop execution if last response could not be parsed.
+  -- Prevents API calls from being exhausted by parsing bugs.
   when (now < realToFrac lockT + lockDuration) $
     die $ "New API calls locked due to failed parse, delete " <> lockPath <> " to retry."
 
+  -- If using cache, attempt to retrieve a @OneCallRoot@ from a cache file.
+  -- Otherwise, or if cache is invalid, get a new response from the API.
   if useCache
   then do
     cacheFile <- getJSONCache "oneCall.json" :: IO (Maybe OneCallRoot)
@@ -110,7 +115,7 @@ getOneCall useCache cfg = do
                         cacheJSON "unitSystem.json" (cfg ^. #unitSystem)
                         return x
 
--- Get the first matched location from the OWM geocoding API
+-- | Get the first matched location from the OWM geocoding API
 getLocation :: Config -> IO MatchedLocation
 getLocation cfg = do
   geocodeCache <- getJSONCache "geocode.json" :: IO (Maybe GeocodeRoot)

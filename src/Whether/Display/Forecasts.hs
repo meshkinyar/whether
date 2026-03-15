@@ -13,6 +13,7 @@ import Whether.Display.Components
 import Whether.Display.Frame as Frame
 import Whether.Config as Config
 
+-- | A frame used to format a detailed weather forecast.
 detailFrame :: Config -> Frame Forecast
 detailFrame config = Frame fp rows
   where

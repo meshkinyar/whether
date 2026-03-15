@@ -305,7 +305,7 @@ getCurrentWeather config oneCall = CurrentWeather
     u   = config ^. #unitSystem
     cur = oneCall ^. #current
 
--- | Helper to get the first weather condition ID from a list of @(Weather) objects.
+-- | Helper to get the first weather condition ID from a list of @Weather@ objects.
 getFirstWeather :: [Weather] -> Maybe WeatherCondition
 getFirstWeather (x:_) = toWeatherCondition $ x ^. #id
 getFirstWeather [] = Nothing

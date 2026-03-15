@@ -29,13 +29,13 @@ main = do
     TmuxStatus o -> cmdTmuxStatus config o
     Calibrate    -> cmdCalibrate
 
--- Print information about the current weather
+-- | Print a tmux status string.
 cmdTmuxStatus :: Config -> TmuxStatusOptions -> IO ()
 cmdTmuxStatus config _ = do
   oneCall <- getOneCall True config
   T.putStr (tmuxStatus $ getCurrentWeather config oneCall)
 
--- Print a forecast
+-- | Print a forecast.
 cmdForecast :: Config -> ForecastOptions -> IO ()
 cmdForecast config ForecastOptions{optStyle, optDays} = do
   oneCall <- getOneCall True config

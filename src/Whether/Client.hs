@@ -36,13 +36,13 @@ instance ToJSON UnitSystem
 data WeatherAPI = OpenWeatherMap
   deriving (Eq, Read, Show, Generic)
 
--- | Gets a @(Config) value from a config file, adding default values where necessary.
+-- | Gets a @Config@ value from a config file, adding default values where necessary.
 getConfig :: IO Config
 getConfig = do
   systemTZ <- loadLocalTZ
   toConfig systemTZ <$> getConfigFile
 
--- | Retrieves a @(ConfigFile) record from the config file on disk.
+-- | Retrieves a @ConfigFile@ record from the config file on disk.
 getConfigFile :: IO ConfigFile
 getConfigFile = do
   configPath   <- getXdgDirectory XdgConfig "whether/config.toml"

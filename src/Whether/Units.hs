@@ -19,7 +19,7 @@ newtype UnitSystemCache = UnitSystemCache { cachedUnitSystem :: UnitSystem }
 data TimeNotation = TwelveHour | TwentyFourHour
   deriving (Eq, Read, Show, Generic)
 
--- | A record containing the datetime mode of all @(Forecast) records. 
+-- | A record containing the datetime mode of all @Forecast@ records. 
 data DTStyle = 
   DTStyle
   { dayStyle     :: DayStyle
@@ -32,7 +32,7 @@ data DayStyle = DayAbbr | DayMonth | MonthDay
   deriving (Eq, Read, Show, Generic)
 
 -- | Represents the style used to display the current date and/or time,
--- parameterized by @(TimeNotation).
+-- parameterized by @TimeNotation@.
 data CurrentStyle = HourMinute
                   | DayNameHourMinute
                   | MonthDayHourMinute
@@ -65,13 +65,13 @@ newtype RelativeHumidity = RelativeHumidity Integer
 -- | Represents the UV index value.
 newtype UVI = UVI Double
 
--- | Lifting function for functions that take one @(Temperature) value.
+-- | Lifting function for functions that take one @Temperature@ value.
 liftT :: (Double -> Double) -> Temperature -> Temperature
 liftT f (Fahrenheit t) = Fahrenheit (f t)
 liftT f (Celsius t)    = Celsius (f t)
 liftT f (Kelvin t)     = Kelvin (f t)
 
--- | Lifting function for functions that take two @(Temperature) values.
+-- | Lifting function for functions that take two @Temperature@ values.
 -- Used primarily to abstract away unit systems when performing temperature arithmetic.
 liftT2 :: (Double -> Double -> Double) -> Temperature -> Temperature -> Temperature
 liftT2 f (Fahrenheit t)    (Fahrenheit t') = Fahrenheit (f t t')
@@ -101,30 +101,30 @@ toKelvin (Fahrenheit t) = Kelvin $ (t - 32) * (5 / 9 :: Double) + 273.15
 toKelvin (Celsius t)    = Kelvin $ t + 273.15
 toKelvin (Kelvin t)     = Kelvin t
 
--- | Converts a @(Double) to a precipitation depth based on the provided @(UnitSystem).
+-- | Converts a @Double@ to a precipitation depth based on the provided @UnitSystem@.
 toPrecipitation :: UnitSystem -> Double -> Precipitation
 toPrecipitation Imperial p = Inch p
 toPrecipitation _ p = Millimetre p
 
--- | Converts a @(Double) to a @(Temperature) based on the provided @(UnitSystem).
+-- | Converts a @Double@ to a @Temperature@ based on the provided @UnitSystem@.
 toTemperature :: UnitSystem -> Double -> Temperature
 toTemperature Imperial t = Fahrenheit t
 toTemperature Metric t   = Celsius t
 toTemperature Standard t = Kelvin t
 
--- | Converts a @(Double) to a @(Speed) scalar based on the provided @(UnitSystem).
+-- | Converts a @Double@ to a @Speed@ scalar based on the provided @UnitSystem@.
 toSpeed :: UnitSystem -> Double -> Speed
 toSpeed Imperial s = MilesPerHour s
 toSpeed _ s = MetresPerSecond s
 
--- | Converts an @(Integer) to a @(PresureLevel) based on the provided @(UnitSystem).
+-- | Converts an @Integer@ to a @PresureLevel@ based on the provided @UnitSystem@.
 toPressureLevel :: Integer -> PressureLevel
 toPressureLevel p
   | p > 1014  = HighPressure
   | p < 1012  = LowPressure
   | otherwise = NormalPressure
 
--- | Gets the heat index of any @(Temperature) value in the same unit system.
+-- | Gets the heat index of any @Temperature@ value in the same unit system.
 -- Formula: https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml
 toHeatIndex :: Temperature -> RelativeHumidity -> Temperature
 toHeatIndex te (RelativeHumidity rhI) = case te of

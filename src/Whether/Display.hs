@@ -212,7 +212,7 @@ instance Symbol PressureLevel where
   symbol LowPressure    = "🅛 "
 
 instance Symbol a => Symbol (Maybe a) where
-  symbol Nothing  = ""
+  symbol Nothing  = "  "
   symbol (Just x) = symbol x
 
 -- | Shows the rounded representation of a double.

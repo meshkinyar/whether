@@ -18,7 +18,7 @@ import qualified Data.Text as S ( Text, pack, concat, show, intercalate, replica
 -- | A function used to compose a row by formatting individual cells.
 type Component a = FrameProperties -> Format T.Builder (a -> T.Builder)
 
--- | Represents a type of border within a @(Frame).
+-- | Represents a type of border within a @Frame@.
 data Border = Top
             | Divider
             | Bottom
@@ -54,13 +54,15 @@ data Row a = Row
 data LineStyle = Rounded | Angular | ASCII
   deriving (Eq, Read, Show, Generic)
 
+-- | Create a forecast builder from a frame and a list of weather data.
 formatFrame :: Frame a -> [a] -> T.Builder
 formatFrame (Frame fp rs) list = foldMap (\r -> bformat (composeRow r fp) list <> "\n") rs
 
+-- | Compose a row formatter given @FrameProperties@.
 composeRow :: Row a -> FrameProperties -> Format T.Builder ([a] -> T.Builder)
 composeRow (Row compose sep l r) fp = l %> intercalated sep (compose fp) >% r
 
--- | Creates a row based on the provided @(LineStyle) and @(Component).
+-- | Creates a row based on the provided @LineStyle@ and @Component@.
 -- Content rows use the same character for left, right, and separator chars.
 contentRow :: LineStyle -> Component a -> Row a
 contentRow style f = Row f b bl br
@@ -82,25 +84,14 @@ borderRow ASCII   Top     = mkBorderRow ASCII   "-+-" "/-" "-\\"
 borderRow ASCII   Divider = mkBorderRow ASCII   "-+-" "+-" "-+"
 borderRow ASCII   Bottom  = mkBorderRow ASCII   "-+-" "\\-" "-/"
 
--- | Common helper function for @(borderRow) that adds a component consisting
+-- | Common helper function for @borderRow@ that adds a component consisting
 -- entirely of horizontal lines.
 mkBorderRow :: LineStyle -> T.Text -> Format T.Builder T.Builder -> Format T.Builder T.Builder -> Row a
 mkBorderRow ASCII = Row $ spanCell '-'
 mkBorderRow _     = Row $ spanCell '─'
 
 -- | Component that takes a single character and outputs a cell that repeats
--- that character to fill the cell width specified in the @(FrameProperties).
+-- that character to fill the cell width specified in the @FrameProperties@.
 spanCell :: Char -> Component a
 spanCell c fp = later . (\t _ -> T.fromString t) . replicate (fromIntegral $ cellWidth fp) $ c
 
-compactFormat :: FrameProperties -> T.Text -> T.Text -> T.Text
-compactFormat fp icoL t = " " <> icoL <> t <> padR
-  where
-    padR = T.replicate lenR " "
-    lenR = fromIntegral $ fromIntegral (cellWidth fp) - T.length t - T.length icoL - 1
-
-expandedFormat :: FrameProperties -> T.Text -> T.Text -> T.Text
-expandedFormat fp x y = " " <> x <> " " <> y <> padR
-  where
-    padR = T.replicate lenR " "
-    lenR = fromIntegral $ fromIntegral (cellWidth fp) - T.length y - T.length x - 2

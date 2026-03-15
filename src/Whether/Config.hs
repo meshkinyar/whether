@@ -27,7 +27,7 @@ import Whether.Units            ( UnitSystem
                                 )
 
 -- | Represents configuration values used by this package.
--- Conversion from @(ConfigFile) assigns defaults to any Nothing value.
+-- Conversion from @ConfigFile@ assigns defaults to any Nothing value.
 data Config = 
   Config
     { location       :: S.Text
@@ -101,7 +101,7 @@ instance FromValue TZ where
 instance ToValue TZ where
   toValue = Text . S.show
 
--- | Converts a @(ConfigFile) to a @(Config), adding default values
+-- | Converts a @ConfigFile@ to a @Config@, adding default values
 -- where the user has not provided a value.
 toConfig :: TZ -> ConfigFile -> Config
 toConfig tz cf =

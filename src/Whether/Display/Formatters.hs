@@ -13,7 +13,7 @@ import Whether.Weather
 import Whether.Display
 import Whether.Units
 
--- | Base function for formatters that display data from a @(Forecast).
+-- | Base function for formatters that display data from a @Forecast@.
 dynamic :: (a -> T.Text) -> (Forecast -> a) -> Format r (Forecast -> r)
 dynamic fmt field = later $ T.fromLazyText . fmt . field
 

@@ -53,5 +53,5 @@ data WeatherCondition = Clear
 -- | Represents the velocity of the wind at a given point in time.
 data WindVelocity = WindVelocity CardinalDirection Speed
 
--- | Type synonym for Latitude / Longitude values.
+-- | Type synonym for latitude / longitude values.
 type Coordinates = (Double, Double)
